@@ -1,9 +1,10 @@
 # Feature Inventory
+
 ## CPE Equipment & Hardware Inventory and Borrowing System (EquipFlow)
 
 **Document ID:** `FEAT-01`  
 **Version:** `1.1.0`  
-**Status:** Baseline Revised (Addressed Peer Review Feedback)  
+**Status:** Approved
 **Deliverable:** Project Deliverable 1 — Part B  
 
 ---
@@ -28,8 +29,9 @@ The EquipFlow platform is partitioned into eight (8) discrete functional feature
 ## 2. Detailed Feature Specifications
 
 ### F-01: Authentication, Session, and Role Identity
-* **Scope in Sprint 1:** 
-  * Seeded users (Borrowers and Custodians). 
+
+* **Scope in Sprint 1:**
+  * Seeded users (Borrowers and Custodians).
   * Endpoint `POST /api/v1/auth/login` validating email and bcrypt password, issuing an HTTP Bearer JWT containing `{ userId, role, email, jti, exp }`.
   * Endpoint `GET /api/v1/auth/me` returning the authenticated user profile and role.
   * Endpoint `POST /api/v1/auth/logout` executing per-token server-side revocation: persists the token's unique `jti` and expiry into the database `RevokedToken` table. The `requireAuth` middleware rejects any request presenting a revoked `jti` with HTTP 401 Unauthorized (`TOKEN_REVOKED`), while concurrent sessions on other devices remain completely intact.
@@ -38,13 +40,15 @@ The EquipFlow platform is partitioned into eight (8) discrete functional feature
 * **Verification Approach:** Automated unit tests for bcrypt hashing; Supertest API integration tests for valid/invalid login, role route guards, and `TEST-AUTH-03` asserting that logging out Session 1 revokes Token 1 (returns 401) while concurrent Session 2 (Token 2) continues to access protected routes with HTTP 200.
 
 ### F-02: Serialized Equipment Catalog
+
 * **Scope in Sprint 1:** Read-only catalog endpoints `GET /api/v1/items` and `GET /api/v1/items/:id` showing asset tag, equipment name, model, category, serial number, and status (`AVAILABLE`, `RESERVED`, `CHECKED_OUT`, `MAINTENANCE`). Seeding script for reproducible demo data.
 * **Scope in Sprint 2:** Custodian catalog administration (`POST /api/v1/custodian/items`, `PATCH /api/v1/custodian/items/:id/status` for marking maintenance/retired).
 * **Mapped Requirements:** `FR-05`, `FR-06`, `FR-07`, `FR-08`, `BR-01`, `NFR-05`.
 * **Verification Approach:** API endpoint tests for `/api/v1/items`; Playwright UI tests verifying catalog table rendering and availability badges.
 
 ### F-03: Borrower Request Submission & Personal History
-* **Scope in Sprint 1:** 
+
+* **Scope in Sprint 1:**
   * Borrower submits a borrow request via `POST /api/v1/requests` with payload `{ itemId: string, requestNote?: string }`.
   * **Availability Validation:** Backend verifies item status is strictly `AVAILABLE` (`BR-01`). If already `RESERVED` or `CHECKED_OUT`, request is rejected with HTTP 400 (`ITEM_NOT_AVAILABLE`).
   * **Quota Validation:** Backend verifies combined active count: $\text{Count}(\text{Pending Requests}) + \text{Count}(\text{Active Loans}) < 3$ (`BR-04`). If $\ge 3$, rejected with HTTP 400 (`EXCEEDS_ACTIVE_QUOTA`).
@@ -55,7 +59,8 @@ The EquipFlow platform is partitioned into eight (8) discrete functional feature
 * **Verification Approach:** Unit tests for combined quota calculation; Supertest integration tests verifying cross-user isolation and request creation; Playwright end-to-end request journey.
 
 ### F-04: Custodian Counter Checkout & Exclusive Allocation
-* **Scope in Sprint 1:** 
+
+* **Scope in Sprint 1:**
   * Endpoint `GET /api/v1/custodian/requests` lists pending borrow requests.
   * Custodian records checkout via `POST /api/v1/custodian/checkouts` with payload `{ requestId: string, checkoutNotes?: string }`.
   * **State Validation:** Backend validates that the referenced request is `PENDING` and the associated item is currently `RESERVED` for this specific request (`BR-01`).
@@ -70,17 +75,21 @@ The EquipFlow platform is partitioned into eight (8) discrete functional feature
 * **Verification Approach:** Concurrency integration tests simulating duplicate checkouts; role authorization tests (Borrower getting 403); UI E2E test of complete checkout journey.
 
 ### F-05: Equipment Return & Condition Assessment
+
 * **Scope in Sprint 2:** Custodian selects an active loan, enters return inspection notes and condition grade (e.g., `GOOD`, `MINOR_WEAR`, `DAMAGED`) via `POST /api/v1/custodian/returns`. Loan status set to `RETURNED`; item status reverted to `AVAILABLE`.
 * **Mapped Requirements:** `FR-17`, `BR-01`, `BR-07`.
 
 ### F-06: Due Date Enforcement & Overdue Tracking
+
 * **Scope in Sprint 2:** Background overdue evaluation comparing persisted `dueDate` with `now()` for loans in status `ACTIVE`. Flags delinquent loans as `OVERDUE` and displays visual warning badges on Borrower and Custodian dashboards.
 * **Mapped Requirements:** `FR-18`, `BR-05`, `BR-06`.
 
 ### F-07: Catalog Filtering, Full-Text Search & Category Navigation
+
 * **Scope in Sprint 2:** Multi-parameter search endpoint (`GET /api/v1/items?search=...&category=...&availability=...`). Fast indexed lookup. Responsive UI filter sidebar.
 * **Mapped Requirements:** `FR-05`, `FR-06`, `NFR-04`, `NFR-06`.
 
 ### F-08: Inventory Audit History & Custodial Reporting
+
 * **Scope in Sprint 3:** Append-only transaction log table tracking all state transitions with timestamps and actor IDs (`GET /api/v1/custodian/logs`). Summary dashboard metrics (utilization rate, most borrowed equipment, active loans vs total capacity).
 * **Mapped Requirements:** `BR-08`, `NFR-05`.
