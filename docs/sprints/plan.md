@@ -1,9 +1,10 @@
 # Three-Sprint Development Plan
+
 ## CPE Equipment & Hardware Inventory and Borrowing System (EquipFlow)
 
 **Document ID:** `PLAN-01`  
 **Version:** `1.1.0`  
-**Status:** Baseline Revised (Addressed Peer Review Feedback)  
+**Status:** Approved
 **Deliverable:** Project Deliverable 1 — Part D  
 **Due Date:** 15 November 2026 at 23:59 (Aligned with LEB2 Assignment)  
 
@@ -43,6 +44,7 @@ timeline
 ## 2. Sprint Breakdown
 
 ### Sprint 1: Working Domain Slice & Baseline
+
 * **Milestone Deadline:** Deliverable 1 (15 November 2026 at 23:59 | 80 Points)
 * **Sprint Goal:** Establish the engineering baseline and release a small, fully functional vertical slice demonstrating secure login, role separation, equipment browsing, item requesting, and custodian checkout with strict conflict rejection, 7-day due-date calculation, and real database persistence.
 * **Included Features:**
@@ -64,6 +66,7 @@ timeline
 ---
 
 ### Parallel Track: Lab 5 (CI/CD, Docker & GCP Deployment)
+
 * **Milestone Deadline:** Lab 5 (15 November 2026 at 23:59 | 100 Lab Points)
 * **Objective:** Containerize the accepted Sprint 1 release on `main`, configure PostgreSQL migrations, establish a GitHub Actions CI quality gate, and deploy to GCP Cloud Run.
 * **Release & Staging Pipeline Boundary:**
@@ -79,6 +82,7 @@ timeline
 ---
 
 ### Sprint 2: Core Lifecycle Expansion & Asset Management
+
 * **Milestone Deadline:** Deliverable 2 (29 November 2026 at 23:59 | 70 Points)
 * **Sprint Goal:** Complete the circular borrowing lifecycle by introducing return processing with condition inspections, active overdue background processing, direct walk-in checkouts, custodian inventory editing, and multi-criteria catalog search.
 * **Included Features:**
@@ -97,6 +101,7 @@ timeline
 ---
 
 ### Sprint 3: Completion, Auditing, Hardening & Final Release
+
 * **Milestone Deadline:** Final Project Delivery (13 December 2026 at 23:59 | 100 Points)
 * **Sprint Goal:** Finalize the complete product with append-only audit trail logging, custodial utilization metrics, defect resolution from Lab 6 UAT, full automated regression coverage, and final documentation/demonstration video.
 * **Included Features:**

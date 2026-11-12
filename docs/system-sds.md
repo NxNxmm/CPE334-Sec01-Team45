@@ -1,9 +1,10 @@
 # System-Level Software Design Specification (SDS)
+
 ## CPE Equipment & Hardware Inventory and Borrowing System (EquipFlow)
 
 **Document ID:** `SDS-SYS-01`  
 **Version:** `1.1.0`  
-**Status:** Baseline Revised (Addressed Peer Review Feedback)  
+**Status:** Approved
 **Deliverable:** Project Deliverable 1 — Part C  
 **Due Date:** 15 November 2026 at 23:59 (Aligned with LEB2)  
 
@@ -12,7 +13,9 @@
 ## 1. System Architecture & Tech Stack
 
 ### 1.1 Architectural Overview
+
 EquipFlow is structured as a **modular full-stack application** composed of three logical tiers:
+
 1. **Client Tier (Presentation):** Single Page Application (SPA) built with React 18, Vite, and TypeScript.
 2. **Application / API Tier (Business Logic):** RESTful service built with Node.js, Express, and TypeScript, structured into Controllers, Services, and Domain Validators.
 3. **Persistence Tier (Data):** Relational database managed through Prisma ORM (SQLite for local deterministic development and testing; PostgreSQL in a Docker container for production / GCP deployment).
@@ -54,12 +57,13 @@ graph TD
 | **Frontend Framework** | **React** with **Vite** | `18.3.x` / `6.x` | High responsiveness, fast HMR during development, strong component reusability, and continuity with TokTickIT labs 1–4. |
 | **Language** | **TypeScript** | `5.7.x` | End-to-end type safety between client API calls, backend routes, and database models, eliminating common runtime type errors. |
 | **Styling & UI** | **Bootstrap 5** | `5.3.x` | Clean, standardized utility classes, responsive grid system (mobile/tablet/desktop), and zero styling overhead. |
-| **Backend Runtime** | **Node.js + Express** | `22.x` / `4.21.x`| Lightweight, fast event-driven HTTP request handling with robust middleware support for auth and role checks. |
-| **ORM / Data Access**| **Prisma ORM** | `5.22.x` | Type-safe queries, automated database migrations, declarative schema definition, and seamless seed scripting. |
+| **Backend Runtime** | **Node.js + Express** | `22.x` / `4.21.x` | Lightweight, fast event-driven HTTP request handling with robust middleware support for auth and role checks. |
+| **ORM / Data Access** | **Prisma ORM** | `5.22.x` | Type-safe queries, automated database migrations, declarative schema definition, and seamless seed scripting. |
 | **Database Engine** | **SQLite (Dev/Test)**<br>**PostgreSQL (GCP)** | SQLite 3<br>PostgreSQL 16 | SQLite provides zero-dependency, isolated, deterministic local testing. PostgreSQL on GCP Cloud SQL provides production durability for Lab 5. |
 | **Testing Tools** | **Vitest**, **Supertest**, **Playwright** | Vitest 2.x<br>Supertest 7.x<br>Playwright 1.63.x | Vitest for lightning-fast unit and domain rule testing; Supertest for API and auth integration; Playwright for browser E2E journeys. |
 
 ### 1.3 Communication & Business Rule Enforcement Boundary
+
 * **Strict Backend Enforcement:** All domain invariants and business rules (`BR-01` to `BR-08`) are enforced exclusively within the **Backend Service Layer** (`src/services/`).
 * The client UI disables buttons and provides client-side validation solely for user convenience. A hidden button or disabled input is never treated as authorization.
 * **Transactional Concurrency Protection:** Every state-mutating operation (request creation, checkout, return) executes inside a database transaction (`prisma.$transaction`) to guarantee atomicity and prevent race conditions.
@@ -155,6 +159,7 @@ erDiagram
 ### 2.2 Entity Field Dictionary & Integrity Constraints
 
 #### 1. `User` Entity
+
 * `id` (String, UUID/CUID, Primary Key)
 * `email` (String, Unique, Not Null) — Institutional email address used for login.
 * `passwordHash` (String, Not Null) — bcrypt hash (salt rounds $\ge 10$). Plaintext never stored.
@@ -164,11 +169,13 @@ erDiagram
 * `isActive` (Boolean, Default `true`) — Disabled users cannot log in.
 
 #### 1.1 `RevokedToken` Entity
+
 * `jti` (String, Primary Key) — Unique JWT identifier string.
 * `expiresAt` (DateTime, Not Null) — Token expiry date/time. Records past this timestamp can be purged.
 * `createdAt` (DateTime, Default `now()`) — Audit timestamp of when logout occurred.
 
 #### 2. `EquipmentItem` Entity
+
 * `id` (String, UUID/CUID, Primary Key)
 * `assetTag` (String, Unique, Not Null) — Scannable department inventory barcode/tag (e.g., `CPE-OSC-001`).
 * `name` (String, Not Null) — Equipment title (e.g., "Rigol DS1054Z Digital Oscilloscope").
@@ -179,6 +186,7 @@ erDiagram
 * `status` (Enum: `AVAILABLE`, `RESERVED`, `CHECKED_OUT`, `MAINTENANCE`, `RETIRED`, Default `AVAILABLE`).
 
 #### 3. `BorrowRequest` Entity
+
 * `id` (String, UUID/CUID, Primary Key)
 * `borrowerId` (String, Foreign Key $\rightarrow$ `User.id`, Not Null)
 * `itemId` (String, Foreign Key $\rightarrow$ `EquipmentItem.id`, Not Null)
@@ -187,6 +195,7 @@ erDiagram
 * `rejectionReason` (String, Nullable) — Recorded when rejected by custodian.
 
 #### 4. `Loan` Entity
+
 * `id` (String, UUID/CUID, Primary Key)
 * `requestId` (String, Foreign Key $\rightarrow$ `BorrowRequest.id`, Unique, Nullable)
 * `itemId` (String, Foreign Key $\rightarrow$ `EquipmentItem.id`, Not Null)
@@ -203,6 +212,7 @@ erDiagram
 ## 3. UI, API & Access Conventions
 
 ### 3.1 Screen Hierarchy & Navigation
+
 The UI provides distinct views based on authenticated role identity:
 
 ```
@@ -225,6 +235,7 @@ The UI provides distinct views based on authenticated role identity:
 ```
 
 ### 3.2 Shared UI Behaviors
+
 * **Loading States:** All asynchronous fetch actions render a standardized loading spinner or skeleton card.
 * **Empty States:** When a list is empty (e.g., zero pending requests), a contextual empty state card is rendered (`"No pending requests found."`).
 * **Validation Feedback:** Forms display red inline helper text upon field validation failure and disable submit buttons while the request is in flight to prevent double submissions.
@@ -235,6 +246,7 @@ The UI provides distinct views based on authenticated role identity:
 All API endpoints follow RESTful URI conventions under `/api/v1/` and return a standard JSON envelope:
 
 #### Successful Response Format
+
 ```json
 {
   "success": true,
@@ -246,6 +258,7 @@ All API endpoints follow RESTful URI conventions under `/api/v1/` and return a s
 ```
 
 #### Error Response Format
+
 ```json
 {
   "success": false,
@@ -261,6 +274,7 @@ All API endpoints follow RESTful URI conventions under `/api/v1/` and return a s
 ```
 
 #### HTTP Status Codes
+
 * `200 OK`: Request succeeded.
 * `201 Created`: Resource successfully created.
 * `400 Bad Request`: Validation failure or business rule violation (`BR-01`, `BR-04`).
@@ -284,21 +298,24 @@ All endpoints strictly use the `/api/v1/` prefix:
 | `POST /api/v1/requests` | Denied (401) | **Allowed** | Denied (403) | Item must be `AVAILABLE` (`BR-01`); Active Quota $\le 3$ (`BR-04`) | Sprint 1 |
 | `GET /api/v1/requests/my` | Denied (401) | **Allowed** | Denied (403) | Filtered strictly by authenticated `userId` (`FR-11`) | Sprint 1 |
 | `POST /api/v1/requests/:id/cancel` | Denied (401) | **Allowed** | Denied (403) | Can only cancel owned pending requests | Sprint 2 |
-| `GET /api/v1/custodian/requests`| Denied (401) | Denied (403) | **Allowed** | Lists all pending department requests | Sprint 1 |
-| `POST /api/v1/custodian/checkouts`| Denied (401) | Denied (403) | **Allowed** | Item must be `RESERVED` for matching request (`BR-01`, `BR-02`) | Sprint 1 |
-| `POST /api/v1/custodian/checkouts/walk-in`| Denied (401) | Denied (403) | **Allowed** | Item must be `AVAILABLE` for walk-in (`FR-15`) | Sprint 2 |
-| `POST /api/v1/custodian/requests/:id/reject`| Denied (401) | Denied (403) | **Allowed** | Custodian rejects with reason; item $\rightarrow$ `AVAILABLE` | Sprint 2 |
-| `POST /api/v1/custodian/returns`| Denied (401) | Denied (403) | **Allowed** | Custodian records return condition; item $\rightarrow$ `AVAILABLE` | Sprint 2 |
+| `GET /api/v1/custodian/requests` | Denied (401) | Denied (403) | **Allowed** | Lists all pending department requests | Sprint 1 |
+| `POST /api/v1/custodian/checkouts` | Denied (401) | Denied (403) | **Allowed** | Item must be `RESERVED` for matching request (`BR-01`, `BR-02`) | Sprint 1 |
+| `POST /api/v1/custodian/checkouts/walk-in` | Denied (401) | Denied (403) | **Allowed** | Item must be `AVAILABLE` for walk-in (`FR-15`) | Sprint 2 |
+| `POST /api/v1/custodian/requests/:id/reject` | Denied (401) | Denied (403) | **Allowed** | Custodian rejects with reason; item $\rightarrow$ `AVAILABLE` | Sprint 2 |
+| `POST /api/v1/custodian/returns` | Denied (401) | Denied (403) | **Allowed** | Custodian records return condition; item $\rightarrow$ `AVAILABLE` | Sprint 2 |
 | `POST /api/v1/custodian/items` | Denied (401) | Denied (403) | **Allowed** | Custodian registers new equipment asset | Sprint 2 |
-| `PATCH /api/v1/custodian/items/:id/status`| Denied (401) | Denied (403) | **Allowed** | Custodian marks item `MAINTENANCE` or `RETIRED` | Sprint 2 |
+| `PATCH /api/v1/custodian/items/:id/status` | Denied (401) | Denied (403) | **Allowed** | Custodian marks item `MAINTENANCE` or `RETIRED` | Sprint 2 |
 
 ### 3.5 Single JWT Transport & Per-Token Revocation Contract
 
 * **Single Transport:** All authenticated requests must pass the JWT token in the HTTP Authorization header:
+
   ```http
   Authorization: Bearer <jwt-token>
   ```
+
 * **Payload Structure:**
+
   ```json
   {
     "userId": "usr_cuid123",
@@ -309,9 +326,11 @@ All endpoints strictly use the `/api/v1/` prefix:
     "exp": 1731535200
   }
   ```
+
 * **Authoritative Logout Contract & Enforcement across Instances (`FR-03`):**
   1. **Logout Action:** When a user logs out, the client issues `POST /api/v1/auth/logout` presenting its Bearer token.
   2. **Database Persistence:** The backend decodes the token, extracts `jti` and `exp`, and creates a record in the database:
+
      ```typescript
      await prisma.revokedToken.create({
        data: {
@@ -320,7 +339,9 @@ All endpoints strictly use the `/api/v1/` prefix:
        }
      });
      ```
+
   3. **Multi-Instance Enforcement:** Because `RevokedToken` is stored in the shared relational database (SQLite locally, Cloud SQL in production), every backend instance or container synchronously observes the revocation. The authentication middleware (`requireAuth`) queries:
+
      ```typescript
      const isRevoked = await prisma.revokedToken.findUnique({ where: { jti: decoded.jti } });
      if (isRevoked) {
@@ -330,6 +351,7 @@ All endpoints strictly use the `/api/v1/` prefix:
        });
      }
      ```
+
   4. **Multi-Session Independence:** Because revocation is keyed strictly by the unique `jti` of that specific token, logging out on Device A does not invalidate concurrent active sessions on Device B.
   5. **Verification Specification (`TEST-AUTH-03`):**
      * Step 1: Login user as Session 1 $\rightarrow$ obtain `token1` (with `jti_1`).
@@ -349,39 +371,49 @@ All endpoints strictly use the `/api/v1/` prefix:
 Prisma migration files are SQL-dialect specific. To ensure 100% reproducibility across Local Development, CI, and Cloud deployment without provider incompatibility:
 
 #### A. Local Development & Automated Testing (Sprint 1 Baseline)
+
 * **Provider:** SQLite (`datasource db { provider = "sqlite" }` in `prisma/schema.prisma`).
 * **Environment Variable:** `DATABASE_URL="file:./dev.db"` (for dev) and `DATABASE_URL="file:./test.db"` (for isolated automated testing).
 * **Migration Directory:** `prisma/migrations/` (committed to Git).
 * **Migration Generation & Application:**
+
   ```bash
   # Generate and apply local migration
   npx prisma migrate dev --name init
   ```
+
 * **Deterministic Seed Command:**
+
   ```bash
   # Execute reproducible seed data
   npx prisma db seed
   ```
+
   *Seed Data Details:* Creates local test accounts `borrower@cpe.kmutt.ac.th` and `custodian@cpe.kmutt.ac.th` with password `Password123!` (strictly restricted to local dev), plus 6 seeded equipment items across statuses.
 
 #### B. Continuous Integration (CI Pipeline in Sprint 1)
+
 * Runs inside GitHub Actions on PRs into `sprint-1-staging` and `main`.
 * **Migration Validation:** CI explicitly validates committed migrations against a fresh SQLite database rather than using `db push`:
+
   ```bash
   # Drops DB and applies all committed migrations from scratch to guarantee reproducibility
   npx prisma migrate reset --force --skip-seed
   npx prisma db seed
   npm test
   ```
+
 * Ensures that committed migrations execute cleanly from scratch with zero drift before PR approval.
 
 #### C. Cloud Deployment & GCP Cloud Run (Lab 5 Release)
+
 * **Provider & Dedicated Schema Directory:** PostgreSQL (`datasource db { provider = "postgresql" }`). To prevent Prisma migration collision with the SQLite baseline, PostgreSQL configuration resides in its own isolated schema directory:
   * Schema path: `prisma/postgres/schema.prisma`
   * Migration directory: `prisma/postgres/migrations/` (located alongside `schema.prisma` as required by Prisma engine)
 * **CI & Pre-Deployment PostgreSQL Verification:**
   * Prior to GCP deployment, the CI pipeline boots an ephemeral PostgreSQL service container (`services: postgres:16`).
   * Runs client generation and pre-deploy migration check against a clean database:
+
     ```bash
     # Generate Prisma Client from PostgreSQL schema
     npx prisma generate --schema=prisma/postgres/schema.prisma
@@ -395,13 +427,16 @@ Prisma migration files are SQL-dialect specific. To ensure 100% reproducibility 
     # Execute test suite against PostgreSQL
     npm test
     ```
+
   * Proves that the PostgreSQL migrations and seed scripts succeed on a clean, empty database before deployment.
 * **GCP Cloud Run Deployment Command:**
   * Uses Cloud SQL Auth Proxy connecting to GCP Cloud SQL (PostgreSQL 16):
+
     ```bash
     DATABASE_URL="postgresql://equipflow_user:${DB_PASSWORD}@127.0.0.1:5432/equipflow?sslmode=disable" \
     npx prisma migrate deploy --schema=prisma/postgres/schema.prisma
     ```
+
 * **Credential Segregation:**
   * No sample accounts or local passwords are used in production.
   * Production credentials (`DATABASE_URL`, `JWT_SECRET`) are provisioned via **GCP Secret Manager** and injected into the Cloud Run container at runtime.
@@ -409,7 +444,8 @@ Prisma migration files are SQL-dialect specific. To ensure 100% reproducibility 
 
 ### 4.2 Multi-Stage Docker Packaging Readiness & Release Boundary
 
-#### Distinction between Sprint 1 Release and Lab 5 Deployment:
+#### Distinction between Sprint 1 Release and Lab 5 Deployment
+
 1. **Sprint 1 Accepted Release (`v0.1.0-sprint1`):**
    * **Scope:** Complete, locally runnable vertical slice on SQLite with passing Vitest, Supertest, and Playwright tests, comprehensive setup documentation in `README.md`, and seed scripts.
    * **Staging & Release Flow:** Features merge into `sprint-1-staging`, followed by a reviewed release PR merged into `main` and tagged as `v0.1.0-sprint1`.
@@ -421,7 +457,8 @@ Prisma migration files are SQL-dialect specific. To ensure 100% reproducibility 
    * **PR 2 (Release into Main):** Reviewed release PR from `sprint-1-staging` $\rightarrow$ `main`.
    * **Deployment & Tag:** The merge commit on `main` is tagged as `v0.2.0-lab5` and deployed directly to GCP Cloud Run.
 
-#### Docker Multi-Stage Build Architecture (for Lab 5):
+#### Docker Multi-Stage Build Architecture (for Lab 5)
+
 * **Stage 1 (Build Client):** Vite builds optimized static assets into `client/dist/`.
 * **Stage 2 (Build Server):** TypeScript compiler compiles backend into `server/dist/`.
 * **Stage 3 (Runtime):** Lightweight Node.js 22 Alpine runtime containing compiled backend, serving static client files, listening on `PORT` (default 8080 for Cloud Run).
