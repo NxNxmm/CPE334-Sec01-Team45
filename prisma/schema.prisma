@@ -1,0 +1,147 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id               String          @id @default(cuid())
+  email            String          @unique
+  passwordHash     String
+  fullName         String
+  studentOrStaffId String          @unique
+  role             Role            @default(BORROWER)
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  requests         BorrowRequest[]
+  loansAsBorrower  Loan[]          @relation("BorrowerLoans")
+  loansAsCustodian Loan[]          @relation("CustodianLoans")
+  auditLogs        AuditLog[]
+}
+
+enum Role {
+  BORROWER
+  CUSTODIAN
+}
+
+model RevokedToken {
+  jti       String   @id
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model EquipmentItem {
+  id           String        @id @default(cuid())
+  assetTag     String        @unique
+  name         String
+  category     String
+  modelNumber  String?
+  serialNumber String        @unique
+  description  String?
+  condition    ItemCondition @default(GOOD)
+  status       ItemStatus    @default(AVAILABLE)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  requests     BorrowRequest[]
+  loans        Loan[]
+  auditLogs    AuditLog[]
+
+  @@index([status])
+  @@index([category])
+}
+
+enum ItemCondition {
+  NEW
+  GOOD
+  FAIR
+  DAMAGED
+}
+
+enum ItemStatus {
+  AVAILABLE
+  RESERVED
+  CHECKED_OUT
+  MAINTENANCE
+  RETIRED
+}
+
+model BorrowRequest {
+  id              String        @id @default(cuid())
+  borrowerId      String
+  itemId          String
+  status          RequestStatus @default(PENDING)
+  requestNote     String?
+  rejectionReason String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  borrower        User          @relation(fields: [borrowerId], references: [id])
+  item            EquipmentItem @relation(fields: [itemId], references: [id])
+  loan            Loan?
+
+  @@index([borrowerId])
+  @@index([itemId])
+  @@index([status])
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}
+
+enum LoanStatus {
+  ACTIVE
+  RETURNED
+  OVERDUE
+}
+
+model Loan {
+  id              String         @id @default(cuid())
+  requestId       String?        @unique
+  itemId          String
+  borrowerId      String
+  custodianId     String
+  status          LoanStatus     @default(ACTIVE)
+  checkedOutAt    DateTime       @default(now())
+  dueDate         DateTime
+  returnedAt      DateTime?
+  checkoutNotes   String?
+  returnNotes     String?
+  returnCondition ItemCondition?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  request         BorrowRequest? @relation(fields: [requestId], references: [id])
+  item            EquipmentItem  @relation(fields: [itemId], references: [id])
+  borrower        User           @relation("BorrowerLoans", fields: [borrowerId], references: [id])
+  custodian       User           @relation("CustodianLoans", fields: [custodianId], references: [id])
+
+  @@index([borrowerId])
+  @@index([custodianId])
+  @@index([itemId])
+  @@index([status])
+}
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  entityType    String
+  entityId      String
+  action        String
+  details       String?
+  performedById String
+  timestamp     DateTime @default(now())
+
+  performedBy   User     @relation(fields: [performedById], references: [id])
+  item          EquipmentItem? @relation(fields: [entityId], references: [id])
+
+  @@index([entityType, entityId])
+}
