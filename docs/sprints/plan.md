@@ -66,7 +66,14 @@ timeline
 ### Parallel Track: Lab 5 (CI/CD, Docker & GCP Deployment)
 * **Milestone Deadline:** Lab 5 (15 November 2026 at 23:59 | 100 Lab Points)
 * **Objective:** Containerize the accepted Sprint 1 release on `main`, configure PostgreSQL migrations, establish a GitHub Actions CI quality gate, and deploy to GCP Cloud Run.
-* **Connection to Sprint 1:** Lab 5 directly packages and ships the exact immutable release tag created at the completion of Sprint 1.
+* **Release & Commit Boundary:**
+  * **Accepted Sprint 1 Release (`v0.1.0-sprint1`):** The release candidate merged into `main` for Deliverable 1 contains the local SQLite baseline, seed scripts, passing automated tests, and local documentation. It does not include active GCP deployment or cloud pipelines.
+  * **Lab 5 Branch & Deployment Commit (`v0.2.0-lab5`):** Lab 5 development branches off `v0.1.0-sprint1` onto branch `lab-5/cloud-deployment`. This branch introduces:
+    1. Multi-stage `Dockerfile` and `.dockerignore`.
+    2. GitHub Actions CI/CD workflow (`.github/workflows/ci-cd.yml`) executing committed migration resets and running PostgreSQL container tests.
+    3. Dedicated PostgreSQL schema (`prisma/schema.pg.prisma`) and migrations directory (`prisma/migrations_pg/`).
+    4. Cloud Run deployment pipeline using Cloud SQL Auth Proxy and GCP Secret Manager.
+  * Following teammate PR review, `lab-5/cloud-deployment` is merged into `main` and tagged as `v0.2.0-lab5`. The live GCP Cloud Run instance hosts the exact commit associated with tag `v0.2.0-lab5`.
 
 ---
 

@@ -20,7 +20,7 @@ This matrix maps all Functional Requirements (FR), Business Rules (BR), and Non-
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **FR-01** | Functional | User login & JWT Bearer issuance | **F-01** | Sprint 1 | API Integration Test (`TEST-AUTH-01`) |
 | **FR-02** | Functional | Current user identity (`GET /api/v1/auth/me`)| **F-01** | Sprint 1 | API Integration Test (`TEST-AUTH-02`) |
-| **FR-03** | Functional | Logout & server-side token revocation | **F-01** | Sprint 1 | API Test verifying 401 on revoked token (`TEST-AUTH-03`) |
+| **FR-03** | Functional | Logout & per-token jti revocation | **F-01** | Sprint 1 | API Test verifying 401 on revoked token & 200 on concurrent session (`TEST-AUTH-03`) |
 | **FR-04** | Functional | Server-side role authorization guard | **F-01** | Sprint 1 | API Integration Test (`TEST-AUTH-04`) |
 | **FR-05** | Functional | Browse equipment catalog (`/api/v1/items`)| **F-02** | Sprint 1 | UI Journey / E2E (`TEST-CAT-01`) |
 | **FR-06** | Functional | Inspect equipment details & serial | **F-02** | Sprint 1 | API Integration Test (`TEST-CAT-02`) |

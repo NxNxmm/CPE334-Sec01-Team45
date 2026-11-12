@@ -88,10 +88,15 @@ erDiagram
         string fullName
         string studentOrStaffId UK
         enum role "BORROWER | CUSTODIAN"
-        datetime tokenRevokedAt
         boolean isActive
         datetime createdAt
         datetime updatedAt
+    }
+
+    RevokedToken {
+        string jti PK
+        datetime expiresAt
+        datetime createdAt
     }
 
     EquipmentItem {
@@ -156,8 +161,12 @@ erDiagram
 * `fullName` (String, Not Null) — User display name.
 * `studentOrStaffId` (String, Unique, Not Null) — Academic identifier (e.g., student ID `67070501026`).
 * `role` (Enum: `BORROWER`, `CUSTODIAN`, Not Null) — User role for access control.
-* `tokenRevokedAt` (DateTime, Nullable) — Timestamp of last logout/revocation. Tokens issued prior to this timestamp are rejected with HTTP 401.
 * `isActive` (Boolean, Default `true`) — Disabled users cannot log in.
+
+#### 1.1 `RevokedToken` Entity
+* `jti` (String, Primary Key) — Unique JWT identifier string.
+* `expiresAt` (DateTime, Not Null) — Token expiry date/time. Records past this timestamp can be purged.
+* `createdAt` (DateTime, Default `now()`) — Audit timestamp of when logout occurred.
 
 #### 2. `EquipmentItem` Entity
 * `id` (String, UUID/CUID, Primary Key)
@@ -283,17 +292,53 @@ All endpoints strictly use the `/api/v1/` prefix:
 | `POST /api/v1/custodian/items` | Denied (401) | Denied (403) | **Allowed** | Custodian registers new equipment asset | Sprint 2 |
 | `PATCH /api/v1/custodian/items/:id/status`| Denied (401) | Denied (403) | **Allowed** | Custodian marks item `MAINTENANCE` or `RETIRED` | Sprint 2 |
 
-### 3.5 Single JWT Transport & Logout Revocation Contract
+### 3.5 Single JWT Transport & Per-Token Revocation Contract
+
 * **Single Transport:** All authenticated requests must pass the JWT token in the HTTP Authorization header:
   ```http
   Authorization: Bearer <jwt-token>
   ```
-* **Payload Structure:** `{ userId: string, role: string, email: string, jti: string, iat: number, exp: number }`
-* **Logout Contract & Server-Side Invalidation (`FR-03`):**
-  1. When a user logs out, the client issues `POST /api/v1/auth/logout` with the Bearer token.
-  2. The server updates `User.tokenRevokedAt = new Date()` (or stores the token `jti` in a revocation cache).
-  3. The `requireAuth` middleware checks: if `token.iat < user.tokenRevokedAt`, the request is immediately rejected with HTTP 401 Unauthorized (`"Token has been revoked"`).
-  4. **Verification Method:** An automated Supertest test (`TEST-AUTH-03`) logs in, calls a protected endpoint (verifying 200), calls logout (verifying 200), and immediately repeats the call to the protected endpoint asserting HTTP 401.
+* **Payload Structure:**
+  ```json
+  {
+    "userId": "usr_cuid123",
+    "role": "BORROWER",
+    "email": "borrower@cpe.kmutt.ac.th",
+    "jti": "550e8400-e29b-41d4-a716-446655440000",
+    "iat": 1731448800,
+    "exp": 1731535200
+  }
+  ```
+* **Authoritative Logout Contract & Enforcement across Instances (`FR-03`):**
+  1. **Logout Action:** When a user logs out, the client issues `POST /api/v1/auth/logout` presenting its Bearer token.
+  2. **Database Persistence:** The backend decodes the token, extracts `jti` and `exp`, and creates a record in the database:
+     ```typescript
+     await prisma.revokedToken.create({
+       data: {
+         jti: decoded.jti,
+         expiresAt: new Date(decoded.exp * 1000)
+       }
+     });
+     ```
+  3. **Multi-Instance Enforcement:** Because `RevokedToken` is stored in the shared relational database (SQLite locally, Cloud SQL in production), every backend instance or container synchronously observes the revocation. The authentication middleware (`requireAuth`) queries:
+     ```typescript
+     const isRevoked = await prisma.revokedToken.findUnique({ where: { jti: decoded.jti } });
+     if (isRevoked) {
+       return res.status(401).json({
+         success: false,
+         error: { code: "TOKEN_REVOKED", message: "This session has been logged out." }
+       });
+     }
+     ```
+  4. **Multi-Session Independence:** Because revocation is keyed strictly by the unique `jti` of that specific token, logging out on Device A does not invalidate concurrent active sessions on Device B.
+  5. **Verification Specification (`TEST-AUTH-03`):**
+     * Step 1: Login user as Session 1 $\rightarrow$ obtain `token1` (with `jti_1`).
+     * Step 2: Login same user as Session 2 $\rightarrow$ obtain `token2` (with `jti_2`).
+     * Step 3: Call `GET /api/v1/auth/me` with `token1` $\rightarrow$ assert HTTP 200.
+     * Step 4: Call `GET /api/v1/auth/me` with `token2` $\rightarrow$ assert HTTP 200.
+     * Step 5: Call `POST /api/v1/auth/logout` with `token1` $\rightarrow$ assert HTTP 200.
+     * Step 6: Call `GET /api/v1/auth/me` with `token1` $\rightarrow$ assert HTTP 401 (`TOKEN_REVOKED`).
+     * Step 7: Call `GET /api/v1/auth/me` with `token2` $\rightarrow$ assert HTTP 200 (proving concurrent session remains valid).
 
 ---
 
@@ -303,10 +348,11 @@ All endpoints strictly use the `/api/v1/` prefix:
 
 Prisma migration files are SQL-dialect specific. To ensure 100% reproducibility across Local Development, CI, and Cloud deployment without provider incompatibility:
 
-#### A. Local Development & Automated Testing (Sprint 1)
-* **Provider:** SQLite (`datasource db { provider = "sqlite" }`).
+#### A. Local Development & Automated Testing (Sprint 1 Baseline)
+* **Provider:** SQLite (`datasource db { provider = "sqlite" }` in `prisma/schema.prisma`).
 * **Environment Variable:** `DATABASE_URL="file:./dev.db"` (for dev) and `DATABASE_URL="file:./test.db"` (for isolated automated testing).
-* **Migration Commands:**
+* **Migration Directory:** `prisma/migrations/` (committed to Git).
+* **Migration Generation & Application:**
   ```bash
   # Generate and apply local migration
   npx prisma migrate dev --name init
@@ -318,29 +364,52 @@ Prisma migration files are SQL-dialect specific. To ensure 100% reproducibility 
   ```
   *Seed Data Details:* Creates local test accounts `borrower@cpe.kmutt.ac.th` and `custodian@cpe.kmutt.ac.th` with password `Password123!` (strictly restricted to local dev), plus 6 seeded equipment items across statuses.
 
-#### B. Continuous Integration (CI Pipeline)
-* Runs inside GitHub Actions.
-* Uses the automated test configuration:
+#### B. Continuous Integration (CI Pipeline in Sprint 1)
+* Runs inside GitHub Actions on PRs into `sprint1-staging` and `main`.
+* **Migration Validation:** CI explicitly validates committed migrations against a fresh SQLite database rather than using `db push`:
   ```bash
-  npx prisma db push --skip-generate
+  # Drops DB and applies all committed migrations from scratch to guarantee reproducibility
+  npx prisma migrate reset --force --skip-seed
+  npx prisma db seed
   npm test
   ```
-* Ensures fast, ephemeral, zero-drift test execution.
+* Ensures that committed migrations execute cleanly from scratch with zero drift before PR approval.
 
-#### C. Cloud Deployment & GCP Cloud Run (Lab 5)
-* **Provider:** PostgreSQL (`datasource db { provider = "postgresql" }`).
-* **Environment Variable:** `DATABASE_URL="postgresql://user:pass@host:5432/equipflow?sslmode=require"`.
-* **Migration Command in Deployment Pipeline:**
-  ```bash
-  npx prisma migrate deploy
-  ```
+#### C. Cloud Deployment & GCP Cloud Run (Lab 5 Release)
+* **Provider & Schema Source:** PostgreSQL (`datasource db { provider = "postgresql" }`). The PostgreSQL schema and migrations reside in `prisma/schema.pg.prisma` with dialect-specific migration files committed to `prisma/migrations_pg/`.
+* **CI & Pre-Deployment PostgreSQL Verification:**
+  * Prior to GCP deployment, the CI pipeline boots an ephemeral PostgreSQL service container (`services: postgres:16`).
+  * Runs pre-deploy migration check against a clean database:
+    ```bash
+    npx prisma migrate deploy --schema=prisma/schema.pg.prisma
+    npx prisma db seed
+    npm test
+    ```
+  * Proves that the PostgreSQL migrations and seed scripts succeed on a clean, empty database before deployment.
+* **GCP Cloud Run Deployment Command:**
+  * Uses Cloud SQL Auth Proxy connecting to GCP Cloud SQL (PostgreSQL 16):
+    ```bash
+    DATABASE_URL="postgresql://equipflow_user:${DB_PASSWORD}@127.0.0.1:5432/equipflow?sslmode=disable" \
+    npx prisma migrate deploy --schema=prisma/schema.pg.prisma
+    ```
 * **Credential Segregation:**
   * No sample accounts or local passwords are used in production.
   * Production credentials (`DATABASE_URL`, `JWT_SECRET`) are provisioned via **GCP Secret Manager** and injected into the Cloud Run container at runtime.
-  * Cloud accounts are created via an administrative CLI script or protected onboarding migration.
+  * Initial administrative cloud account is provisioned via a dedicated onboarding script, not via development seeds.
 
-### 4.2 Multi-Stage Docker Packaging Readiness
-The application is structured for containerization in Lab 5:
-* **Stage 1 (Build Client):** Vite builds optimized static assets into `dist/`.
-* **Stage 2 (Build Server):** TypeScript compiler compiles backend to `dist/`.
-* **Stage 3 (Runtime):** Lightweight Node.js 22 Alpine runtime containing compiled backend and serving static client files, listening on `PORT` (default 8080 for Cloud Run).
+### 4.2 Multi-Stage Docker Packaging Readiness & Release Boundary
+
+#### Distinction between Sprint 1 Release and Lab 5 Deployment:
+1. **Sprint 1 Accepted Release (`v0.1.0-sprint1`):**
+   * **Scope:** Complete, locally runnable vertical slice on SQLite with passing Vitest, Supertest, and Playwright tests, comprehensive setup documentation in `README.md`, and seed scripts.
+   * **Commit Location:** Merged into `main` and tagged as `v0.1.0-sprint1`.
+   * **Exclusions:** Does *not* require Docker containers, live GCP URLs, or active cloud pipelines (strictly per Deliverable 1 handout).
+2. **Lab 5 Deployment Release (`v0.2.0-lab5`):**
+   * **Scope:** Branches off `v0.1.0-sprint1` on branch `lab-5/cloud-deployment`.
+   * Adds the multi-stage `Dockerfile`, `.github/workflows/ci-cd.yml`, `prisma/schema.pg.prisma`, and Cloud Run deployment pipeline.
+   * Reviewed by teammate, merged into `main`, and deployed live on GCP.
+
+#### Docker Multi-Stage Build Architecture (for Lab 5):
+* **Stage 1 (Build Client):** Vite builds optimized static assets into `client/dist/`.
+* **Stage 2 (Build Server):** TypeScript compiler compiles backend into `server/dist/`.
+* **Stage 3 (Runtime):** Lightweight Node.js 22 Alpine runtime containing compiled backend, serving static client files, listening on `PORT` (default 8080 for Cloud Run).

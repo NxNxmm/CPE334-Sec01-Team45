@@ -30,12 +30,12 @@ The EquipFlow platform is partitioned into eight (8) discrete functional feature
 ### F-01: Authentication, Session, and Role Identity
 * **Scope in Sprint 1:** 
   * Seeded users (Borrowers and Custodians). 
-  * Endpoint `POST /api/v1/auth/login` validating email and bcrypt password, issuing an HTTP Bearer JWT containing `{ userId, role, email, jti }`.
+  * Endpoint `POST /api/v1/auth/login` validating email and bcrypt password, issuing an HTTP Bearer JWT containing `{ userId, role, email, jti, exp }`.
   * Endpoint `GET /api/v1/auth/me` returning the authenticated user profile and role.
-  * Endpoint `POST /api/v1/auth/logout` executing server-side invalidation by recording the revoked token identifier (`jti`) or updating `user.tokenRevokedAt`, causing subsequent requests with that token to be rejected with HTTP 401.
+  * Endpoint `POST /api/v1/auth/logout` executing per-token server-side revocation: persists the token's unique `jti` and expiry into the database `RevokedToken` table. The `requireAuth` middleware rejects any request presenting a revoked `jti` with HTTP 401 Unauthorized (`TOKEN_REVOKED`), while concurrent sessions on other devices remain completely intact.
   * Server-side route middleware blocking unauthenticated (401) and unauthorized role requests (403).
 * **Mapped Requirements:** `FR-01`, `FR-02`, `FR-03`, `FR-04`, `NFR-01`, `NFR-02`.
-* **Verification Approach:** Automated unit tests for bcrypt hashing; Supertest API integration tests for valid/invalid login, token revocation on logout, and route guards.
+* **Verification Approach:** Automated unit tests for bcrypt hashing; Supertest API integration tests for valid/invalid login, role route guards, and `TEST-AUTH-03` asserting that logging out Session 1 revokes Token 1 (returns 401) while concurrent Session 2 (Token 2) continues to access protected routes with HTTP 200.
 
 ### F-02: Serialized Equipment Catalog
 * **Scope in Sprint 1:** Read-only catalog endpoints `GET /api/v1/items` and `GET /api/v1/items/:id` showing asset tag, equipment name, model, category, serial number, and status (`AVAILABLE`, `RESERVED`, `CHECKED_OUT`, `MAINTENANCE`). Seeding script for reproducible demo data.

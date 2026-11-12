@@ -64,7 +64,7 @@ This causes critical operational problems:
 ### 4.1 Authentication & Session Management
 * **FR-01 (User Login):** The system shall authenticate registered users using email and password, returning an authenticated JWT Bearer token upon credential validation.
 * **FR-02 (Current User Identity):** The system shall provide endpoint `GET /api/v1/auth/me` returning the profile and role (`BORROWER` or `CUSTODIAN`) of the currently authenticated user.
-* **FR-03 (User Logout & Server-Side Invalidation):** The system shall provide endpoint `POST /api/v1/auth/logout`. Upon invocation, the backend shall record the token identifier (`jti`) or update the user's `tokenRevokedAt` timestamp, rendering that specific token immediately invalid for any subsequent authenticated request (verified by subsequent requests returning HTTP 401).
+* **FR-03 (User Logout & Per-Token Server-Side Revocation):** The system shall provide endpoint `POST /api/v1/auth/logout`. Upon invocation, the backend shall persist the Bearer token's unique identifier (`jti`) and expiry timestamp into the `RevokedToken` table. The authentication middleware shall reject any subsequent request presenting that specific token with HTTP 401 Unauthorized (`TOKEN_REVOKED`). Concurrent sessions for the same user (possessing different `jti` tokens) remain valid and unaffected.
 * **FR-04 (Role-Based Authorization):** The system shall enforce server-side access control on all protected endpoints, denying unauthorized role actions with HTTP 403 Forbidden.
 
 ### 4.2 Catalog & Inventory Management
@@ -140,7 +140,7 @@ This causes critical operational problems:
 3. **Single Physical Location:** All equipment is housed within the central CPE Laboratory; multi-building transfers are not modeled.
 
 ### 7.2 Design Decisions
-* **Decision 01 (JWT Bearer Token with Server-Side Revocation):** Authentication uses HTTP Bearer Tokens (`Authorization: Bearer <token>`). Tokens contain `{ userId, role, email, jti }`. Server-side logout invalidation (`FR-03`) is supported by recording the revoked token identifier or user revocation timestamp, verified via automated 401 tests.
+* **Decision 01 (Per-Token JWT `jti` Revocation):** Authentication uses signed HTTP Bearer Tokens (`Authorization: Bearer <token>`) containing `{ userId, role, email, jti, exp }`. Logout (`FR-03`) persists the token's unique `jti` into a database `RevokedToken` table until its expiry. This guarantees deterministic cross-instance invalidation for the logged-out device while safely preserving a user's concurrent sessions across multiple devices.
 * **Decision 02 (Relational Integrity with Prisma ORM):** Use relational database foreign keys (`userId`, `itemId`, `loanId`) with atomic transactions (`prisma.$transaction`) to enforce concurrency rules and prevent orphaned borrowing records.
 * **Decision 03 (Two-Tier Role Hierarchy):** Role enum is strictly `BORROWER` and `CUSTODIAN`. Borrowers can request and view personal history; Custodians control catalog and checkouts.
 
