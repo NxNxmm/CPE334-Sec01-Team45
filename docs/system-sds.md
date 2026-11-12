@@ -1,20 +1,18 @@
 # System-Level Software Design Specification (SDS)
-
 ## CPE Equipment & Hardware Inventory and Borrowing System (EquipFlow)
 
 **Document ID:** `SDS-SYS-01`  
-**Version:** `1.0.0`  
-**Status:** Wait for review
+**Version:** `1.1.0`  
+**Status:** Baseline Revised (Addressed Peer Review Feedback)  
 **Deliverable:** Project Deliverable 1 — Part C  
+**Due Date:** 15 November 2026 at 23:59 (Aligned with LEB2)  
 
 ---
 
 ## 1. System Architecture & Tech Stack
 
 ### 1.1 Architectural Overview
-
 EquipFlow is structured as a **modular full-stack application** composed of three logical tiers:
-
 1. **Client Tier (Presentation):** Single Page Application (SPA) built with React 18, Vite, and TypeScript.
 2. **Application / API Tier (Business Logic):** RESTful service built with Node.js, Express, and TypeScript, structured into Controllers, Services, and Domain Validators.
 3. **Persistence Tier (Data):** Relational database managed through Prisma ORM (SQLite for local deterministic development and testing; PostgreSQL in a Docker container for production / GCP deployment).
@@ -28,24 +26,24 @@ graph TD
     end
 
     subgraph API Tier ["Application / API Tier (Express + TS)"]
-        AuthMW[Auth Middleware (JWT)]
+        AuthMW[Auth Middleware (JWT Bearer)]
         RoleMW[Role Guard Middleware]
-        Controllers[API Route Controllers]
+        Controllers[API Route Controllers (/api/v1/)]
         Services[Domain Service Layer]
         Validators[Zod / Schema Validation]
     end
 
     subgraph Data Tier ["Persistence Tier (Prisma ORM)"]
         Prisma[Prisma Client]
-        DB[(SQLite / PostgreSQL)]
+        DB[(Local SQLite / GCP Cloud SQL PostgreSQL)]
     end
 
-    UI -->|HTTP / JSON REST API| AuthMW
+    UI -->|HTTP / JSON REST API with Bearer Token| AuthMW
     AuthMW --> RoleMW
     RoleMW --> Controllers
     Controllers --> Validators
     Validators --> Services
-    Services -->|Business Rules Enforced Here| Prisma
+    Services -->|Business Rules Enforced Inside Transactions| Prisma
     Prisma --> DB
 ```
 
@@ -56,16 +54,15 @@ graph TD
 | **Frontend Framework** | **React** with **Vite** | `18.3.x` / `6.x` | High responsiveness, fast HMR during development, strong component reusability, and continuity with TokTickIT labs 1–4. |
 | **Language** | **TypeScript** | `5.7.x` | End-to-end type safety between client API calls, backend routes, and database models, eliminating common runtime type errors. |
 | **Styling & UI** | **Bootstrap 5** | `5.3.x` | Clean, standardized utility classes, responsive grid system (mobile/tablet/desktop), and zero styling overhead. |
-| **Backend Runtime** | **Node.js + Express** | `22.x` / `4.21.x` | Lightweight, fast event-driven HTTP request handling with robust middleware support for auth and role checks. |
-| **ORM / Data Access** | **Prisma ORM** | `5.22.x` | Type-safe queries, automated database migrations, declarative schema definition, and seamless seed scripting. |
-| **Database Engine** | **SQLite (Dev/Test)**<br>**PostgreSQL (Prod)** | SQLite 3<br>PG 16 | SQLite enables zero-friction, isolated, file-based automated tests without external database containers. PostgreSQL ensures cloud durability for GCP Cloud Run (Lab 5). |
+| **Backend Runtime** | **Node.js + Express** | `22.x` / `4.21.x`| Lightweight, fast event-driven HTTP request handling with robust middleware support for auth and role checks. |
+| **ORM / Data Access**| **Prisma ORM** | `5.22.x` | Type-safe queries, automated database migrations, declarative schema definition, and seamless seed scripting. |
+| **Database Engine** | **SQLite (Dev/Test)**<br>**PostgreSQL (GCP)** | SQLite 3<br>PostgreSQL 16 | SQLite provides zero-dependency, isolated, deterministic local testing. PostgreSQL on GCP Cloud SQL provides production durability for Lab 5. |
 | **Testing Tools** | **Vitest**, **Supertest**, **Playwright** | Vitest 2.x<br>Supertest 7.x<br>Playwright 1.63.x | Vitest for lightning-fast unit and domain rule testing; Supertest for API and auth integration; Playwright for browser E2E journeys. |
 
 ### 1.3 Communication & Business Rule Enforcement Boundary
-
 * **Strict Backend Enforcement:** All domain invariants and business rules (`BR-01` to `BR-08`) are enforced exclusively within the **Backend Service Layer** (`src/services/`).
 * The client UI disables buttons and provides client-side validation solely for user convenience. A hidden button or disabled input is never treated as authorization.
-* Every mutating request executes inside a database transaction (`prisma.$transaction`) to guarantee atomicity and prevent race conditions.
+* **Transactional Concurrency Protection:** Every state-mutating operation (request creation, checkout, return) executes inside a database transaction (`prisma.$transaction`) to guarantee atomicity and prevent race conditions.
 
 ---
 
@@ -91,6 +88,7 @@ erDiagram
         string fullName
         string studentOrStaffId UK
         enum role "BORROWER | CUSTODIAN"
+        datetime tokenRevokedAt
         boolean isActive
         datetime createdAt
         datetime updatedAt
@@ -152,17 +150,16 @@ erDiagram
 ### 2.2 Entity Field Dictionary & Integrity Constraints
 
 #### 1. `User` Entity
-
 * `id` (String, UUID/CUID, Primary Key)
 * `email` (String, Unique, Not Null) — Institutional email address used for login.
 * `passwordHash` (String, Not Null) — bcrypt hash (salt rounds $\ge 10$). Plaintext never stored.
 * `fullName` (String, Not Null) — User display name.
 * `studentOrStaffId` (String, Unique, Not Null) — Academic identifier (e.g., student ID `67070501026`).
 * `role` (Enum: `BORROWER`, `CUSTODIAN`, Not Null) — User role for access control.
+* `tokenRevokedAt` (DateTime, Nullable) — Timestamp of last logout/revocation. Tokens issued prior to this timestamp are rejected with HTTP 401.
 * `isActive` (Boolean, Default `true`) — Disabled users cannot log in.
 
 #### 2. `EquipmentItem` Entity
-
 * `id` (String, UUID/CUID, Primary Key)
 * `assetTag` (String, Unique, Not Null) — Scannable department inventory barcode/tag (e.g., `CPE-OSC-001`).
 * `name` (String, Not Null) — Equipment title (e.g., "Rigol DS1054Z Digital Oscilloscope").
@@ -173,7 +170,6 @@ erDiagram
 * `status` (Enum: `AVAILABLE`, `RESERVED`, `CHECKED_OUT`, `MAINTENANCE`, `RETIRED`, Default `AVAILABLE`).
 
 #### 3. `BorrowRequest` Entity
-
 * `id` (String, UUID/CUID, Primary Key)
 * `borrowerId` (String, Foreign Key $\rightarrow$ `User.id`, Not Null)
 * `itemId` (String, Foreign Key $\rightarrow$ `EquipmentItem.id`, Not Null)
@@ -182,15 +178,14 @@ erDiagram
 * `rejectionReason` (String, Nullable) — Recorded when rejected by custodian.
 
 #### 4. `Loan` Entity
-
 * `id` (String, UUID/CUID, Primary Key)
 * `requestId` (String, Foreign Key $\rightarrow$ `BorrowRequest.id`, Unique, Nullable)
 * `itemId` (String, Foreign Key $\rightarrow$ `EquipmentItem.id`, Not Null)
 * `borrowerId` (String, Foreign Key $\rightarrow$ `User.id`, Not Null)
-* `custodianId` (String, Foreign Key $\rightarrow$ `User.id`, Not Null) — Accountable staff recording checkout.
+* `custodianId` (String, Foreign Key $\rightarrow$ `User.id`, Not Null) — Accountable staff recording checkout (`BR-08`).
 * `status` (Enum: `ACTIVE`, `RETURNED`, `OVERDUE`, Default `ACTIVE`).
 * `checkedOutAt` (DateTime, Default `now()`).
-* `dueDate` (DateTime, Not Null) — Authoritative deadline (`checkedOutAt + 7 days`).
+* `dueDate` (DateTime, Not Null) — Authoritative deadline (`checkedOutAt + 7 days`, `BR-05`).
 * `returnedAt` (DateTime, Nullable).
 * `returnCondition` (Enum, Nullable).
 
@@ -199,7 +194,6 @@ erDiagram
 ## 3. UI, API & Access Conventions
 
 ### 3.1 Screen Hierarchy & Navigation
-
 The UI provides distinct views based on authenticated role identity:
 
 ```
@@ -209,7 +203,7 @@ The UI provides distinct views based on authenticated role identity:
 [ Authenticated: Borrower ]
     ├── Catalog Browser View (/catalog)
     │     └── Item Detail Modal (Specs, Status, "Request Item" button)
-    └── My Requests & Loans View (/my-loans)
+    └── My Requests & Loans View (/my-requests)
           ├── Active Loans List (Item details, Checked out date, Due date)
           └── Pending Requests List (Status badges: PENDING, APPROVED)
 
@@ -217,23 +211,21 @@ The UI provides distinct views based on authenticated role identity:
     ├── Custodian Operations Desk (/custodian/desk)
     │     ├── Pending Requests Queue ("Approve & Checkout", "Reject" actions)
     │     └── Active Loans Queue ("Process Return" action)
-    ├── Inventory Catalog Manager (/custodian/inventory)
+    ├── Inventory Catalog Manager (/custodian/inventory) [Sprint 2]
     └── System Audit Logs View (/custodian/logs) [Sprint 3]
 ```
 
 ### 3.2 Shared UI Behaviors
-
 * **Loading States:** All asynchronous fetch actions render a standardized loading spinner or skeleton card.
 * **Empty States:** When a list is empty (e.g., zero pending requests), a contextual empty state card is rendered (`"No pending requests found."`).
 * **Validation Feedback:** Forms display red inline helper text upon field validation failure and disable submit buttons while the request is in flight to prevent double submissions.
 * **Alerts & Toasts:** Action confirmations (e.g., `"Checkout recorded successfully"`) appear as floating dismissible alerts.
 
-### 3.3 API Conventions & Error Structure
+### 3.3 Authoritative API Conventions & Error Structure
 
 All API endpoints follow RESTful URI conventions under `/api/v1/` and return a standard JSON envelope:
 
 #### Successful Response Format
-
 ```json
 {
   "success": true,
@@ -245,13 +237,12 @@ All API endpoints follow RESTful URI conventions under `/api/v1/` and return a s
 ```
 
 #### Error Response Format
-
 ```json
 {
   "success": false,
   "error": {
-    "code": "ITEM_UNAVAILABLE",
-    "message": "Equipment item CPE-OSC-001 is already checked out.",
+    "code": "ITEM_NOT_AVAILABLE",
+    "message": "Equipment item CPE-OSC-001 is currently reserved or checked out.",
     "details": null
   },
   "meta": {
@@ -261,81 +252,95 @@ All API endpoints follow RESTful URI conventions under `/api/v1/` and return a s
 ```
 
 #### HTTP Status Codes
-
 * `200 OK`: Request succeeded.
 * `201 Created`: Resource successfully created.
 * `400 Bad Request`: Validation failure or business rule violation (`BR-01`, `BR-04`).
-* `401 Unauthorized`: Missing or invalid authentication token.
+* `401 Unauthorized`: Missing, invalid, or revoked authentication token.
 * `403 Forbidden`: Authenticated user lacks required role or is attempting cross-user access (`BR-03`, `FR-11`).
 * `404 Not Found`: Target resource does not exist.
-* `409 Conflict`: Concurrency conflict (e.g., item already locked by competing request `BR-02`).
+* `409 Conflict`: Concurrency conflict (e.g., duplicate checkout attempt `BR-02`, concurrent quota overflow).
 * `500 Internal Server Error`: Unhandled server exception (sanitized in production).
 
 ### 3.4 Role & Permission Matrix
 
-| Operation / Endpoint | Anonymous | Borrower | Custodian | Ownership Constraint |
-| :--- | :---: | :---: | :---: | :--- |
-| `POST /api/auth/login` | **Allowed** | Allowed | Allowed | Public |
-| `POST /api/auth/logout` | Denied (401) | **Allowed** | **Allowed** | Authenticated session |
-| `GET /api/auth/me` | Denied (401) | **Allowed** | **Allowed** | Authenticated session |
-| `GET /api/items` | Denied (401) | **Allowed** | **Allowed** | All items |
-| `GET /api/items/:id` | Denied (401) | **Allowed** | **Allowed** | Single item details |
-| `POST /api/requests` | Denied (401) | **Allowed** | Denied (403) | Current user is requester |
-| `GET /api/requests/my` | Denied (401) | **Allowed** | Denied (403) | Returns only owned records |
-| `GET /api/custodian/requests` | Denied (401) | Denied (403) | **Allowed** | All department requests |
-| `POST /api/custodian/checkouts` | Denied (401) | Denied (403) | **Allowed** | Custodian executes |
-| `POST /api/custodian/returns` | Denied (401) | Denied (403) | **Allowed** | Custodian executes |
-| `POST /api/custodian/items` | Denied (401) | Denied (403) | **Allowed** | Custodian executes |
+All endpoints strictly use the `/api/v1/` prefix:
 
-### 3.5 Authentication & Session Lifecycle
+| Operation / Endpoint | Anonymous | Borrower | Custodian | Ownership & Business Rule Guard | Sprint |
+| :--- | :---: | :---: | :---: | :--- | :---: |
+| `POST /api/v1/auth/login` | **Allowed** | Allowed | Allowed | Public authentication | Sprint 1 |
+| `POST /api/v1/auth/logout` | Denied (401) | **Allowed** | **Allowed** | Server records revocation; token rendered invalid | Sprint 1 |
+| `GET /api/v1/auth/me` | Denied (401) | **Allowed** | **Allowed** | Returns authenticated profile and role | Sprint 1 |
+| `GET /api/v1/items` | Denied (401) | **Allowed** | **Allowed** | View all catalog items and statuses | Sprint 1 |
+| `GET /api/v1/items/:id` | Denied (401) | **Allowed** | **Allowed** | View single item details and specifications | Sprint 1 |
+| `POST /api/v1/requests` | Denied (401) | **Allowed** | Denied (403) | Item must be `AVAILABLE` (`BR-01`); Active Quota $\le 3$ (`BR-04`) | Sprint 1 |
+| `GET /api/v1/requests/my` | Denied (401) | **Allowed** | Denied (403) | Filtered strictly by authenticated `userId` (`FR-11`) | Sprint 1 |
+| `POST /api/v1/requests/:id/cancel` | Denied (401) | **Allowed** | Denied (403) | Can only cancel owned pending requests | Sprint 2 |
+| `GET /api/v1/custodian/requests`| Denied (401) | Denied (403) | **Allowed** | Lists all pending department requests | Sprint 1 |
+| `POST /api/v1/custodian/checkouts`| Denied (401) | Denied (403) | **Allowed** | Item must be `RESERVED` for matching request (`BR-01`, `BR-02`) | Sprint 1 |
+| `POST /api/v1/custodian/checkouts/walk-in`| Denied (401) | Denied (403) | **Allowed** | Item must be `AVAILABLE` for walk-in (`FR-15`) | Sprint 2 |
+| `POST /api/v1/custodian/requests/:id/reject`| Denied (401) | Denied (403) | **Allowed** | Custodian rejects with reason; item $\rightarrow$ `AVAILABLE` | Sprint 2 |
+| `POST /api/v1/custodian/returns`| Denied (401) | Denied (403) | **Allowed** | Custodian records return condition; item $\rightarrow$ `AVAILABLE` | Sprint 2 |
+| `POST /api/v1/custodian/items` | Denied (401) | Denied (403) | **Allowed** | Custodian registers new equipment asset | Sprint 2 |
+| `PATCH /api/v1/custodian/items/:id/status`| Denied (401) | Denied (403) | **Allowed** | Custodian marks item `MAINTENANCE` or `RETIRED` | Sprint 2 |
 
-* **Password Hashing:** Passwords hashed with `bcryptjs` using 10 salt rounds prior to persistence.
-* **Token Issuance:** Successful authentication creates a signed JWT containing payload `{ userId: string, role: string, email: string }` signed with `JWT_SECRET` and expiring in 24 hours.
-* **Token Transport:** Sent as HTTP Bearer Token in `Authorization: Bearer <token>` header or HTTP-only cookie.
-* **Current User Retrieval:** Frontend calls `GET /api/auth/me` on initial boot to restore session state.
-* **Logout:** Client clears stored token and calls `POST /api/auth/logout`.
+### 3.5 Single JWT Transport & Logout Revocation Contract
+* **Single Transport:** All authenticated requests must pass the JWT token in the HTTP Authorization header:
+  ```http
+  Authorization: Bearer <jwt-token>
+  ```
+* **Payload Structure:** `{ userId: string, role: string, email: string, jti: string, iat: number, exp: number }`
+* **Logout Contract & Server-Side Invalidation (`FR-03`):**
+  1. When a user logs out, the client issues `POST /api/v1/auth/logout` with the Bearer token.
+  2. The server updates `User.tokenRevokedAt = new Date()` (or stores the token `jti` in a revocation cache).
+  3. The `requireAuth` middleware checks: if `token.iat < user.tokenRevokedAt`, the request is immediately rejected with HTTP 401 Unauthorized (`"Token has been revoked"`).
+  4. **Verification Method:** An automated Supertest test (`TEST-AUTH-03`) logs in, calls a protected endpoint (verifying 200), calls logout (verifying 200), and immediately repeats the call to the protected endpoint asserting HTTP 401.
 
 ---
 
-## 4. Configuration, Seed Data & Deployment Plan
+## 4. Database Setup, Migrations & Deployment Path
 
-### 4.1 Environment Configuration & Secret Handling
+### 4.1 Reproducible Database Strategy across Environments
 
-Configuration is managed via external environment variables. No secrets are stored in version control:
+Prisma migration files are SQL-dialect specific. To ensure 100% reproducibility across Local Development, CI, and Cloud deployment without provider incompatibility:
 
-* `.env.example` committed to Git containing template variable names.
-* `.env` explicitly ignored in `.gitignore`.
+#### A. Local Development & Automated Testing (Sprint 1)
+* **Provider:** SQLite (`datasource db { provider = "sqlite" }`).
+* **Environment Variable:** `DATABASE_URL="file:./dev.db"` (for dev) and `DATABASE_URL="file:./test.db"` (for isolated automated testing).
+* **Migration Commands:**
+  ```bash
+  # Generate and apply local migration
+  npx prisma migrate dev --name init
+  ```
+* **Deterministic Seed Command:**
+  ```bash
+  # Execute reproducible seed data
+  npx prisma db seed
+  ```
+  *Seed Data Details:* Creates local test accounts `borrower@cpe.kmutt.ac.th` and `custodian@cpe.kmutt.ac.th` with password `Password123!` (strictly restricted to local dev), plus 6 seeded equipment items across statuses.
 
-Key variables:
+#### B. Continuous Integration (CI Pipeline)
+* Runs inside GitHub Actions.
+* Uses the automated test configuration:
+  ```bash
+  npx prisma db push --skip-generate
+  npm test
+  ```
+* Ensures fast, ephemeral, zero-drift test execution.
 
-```bash
-NODE_ENV=development
-PORT=5000
-DATABASE_URL="file:./dev.db" # Local SQLite
-JWT_SECRET=super-secret-cpe334-token-key-change-in-prod
-JWT_EXPIRES_IN=24h
-CLIENT_URL=http://localhost:5173
-```
+#### C. Cloud Deployment & GCP Cloud Run (Lab 5)
+* **Provider:** PostgreSQL (`datasource db { provider = "postgresql" }`).
+* **Environment Variable:** `DATABASE_URL="postgresql://user:pass@host:5432/equipflow?sslmode=require"`.
+* **Migration Command in Deployment Pipeline:**
+  ```bash
+  npx prisma migrate deploy
+  ```
+* **Credential Segregation:**
+  * No sample accounts or local passwords are used in production.
+  * Production credentials (`DATABASE_URL`, `JWT_SECRET`) are provisioned via **GCP Secret Manager** and injected into the Cloud Run container at runtime.
+  * Cloud accounts are created via an administrative CLI script or protected onboarding migration.
 
-### 4.2 Reproducible Demo Seed Data
-
-The system includes an idempotent database seed script (`npm run seed`) creating deterministic test data:
-
-* **Borrower Account:** `borrower@cpe.kmutt.ac.th` / `Password123!` (Role: `BORROWER`)
-* **Borrower Account 2:** `borrower2@cpe.kmutt.ac.th` / `Password123!` (Role: `BORROWER` for cross-access testing)
-* **Custodian Account:** `custodian@cpe.kmutt.ac.th` / `Password123!` (Role: `CUSTODIAN`)
-* **Seeded Assets:**
-  * `CPE-OSC-001`: Rigol DS1054Z Digital Oscilloscope (`AVAILABLE`)
-  * `CPE-OSC-002`: Keysight InfiniiVision Oscilloscope (`AVAILABLE`)
-  * `CPE-RPI-001`: Raspberry Pi 4 Model B (4GB) (`AVAILABLE`)
-  * `CPE-RPI-002`: Raspberry Pi 4 Model B (8GB) (`CHECKED_OUT` on seeded loan)
-  * `CPE-FPG-001`: Terasic DE10-Lite FPGA Board (`AVAILABLE`)
-  * `CPE-LOG-001`: Saleae Logic 8 USB Logic Analyzer (`MAINTENANCE`)
-
-### 4.3 Containerization & GCP Deployment Readiness (Lab 5 Alignment)
-
-While cloud deployment is scheduled for Lab 5, the application is architected for immediate containerization:
-
-* Server is completely **stateless** (sessions stored in JWTs, no local in-memory session arrays).
-* Multi-stage Dockerfile can bundle the Vite build into Express static hosting or an Nginx container.
-* Database connection string is purely externalized, allowing instant switch from SQLite to GCP Cloud SQL (PostgreSQL) in Lab 5 without modifying application code.
+### 4.2 Multi-Stage Docker Packaging Readiness
+The application is structured for containerization in Lab 5:
+* **Stage 1 (Build Client):** Vite builds optimized static assets into `dist/`.
+* **Stage 2 (Build Server):** TypeScript compiler compiles backend to `dist/`.
+* **Stage 3 (Runtime):** Lightweight Node.js 22 Alpine runtime containing compiled backend and serving static client files, listening on `PORT` (default 8080 for Cloud Run).
