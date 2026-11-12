@@ -365,7 +365,7 @@ Prisma migration files are SQL-dialect specific. To ensure 100% reproducibility 
   *Seed Data Details:* Creates local test accounts `borrower@cpe.kmutt.ac.th` and `custodian@cpe.kmutt.ac.th` with password `Password123!` (strictly restricted to local dev), plus 6 seeded equipment items across statuses.
 
 #### B. Continuous Integration (CI Pipeline in Sprint 1)
-* Runs inside GitHub Actions on PRs into `sprint1-staging` and `main`.
+* Runs inside GitHub Actions on PRs into `sprint-1-staging` and `main`.
 * **Migration Validation:** CI explicitly validates committed migrations against a fresh SQLite database rather than using `db push`:
   ```bash
   # Drops DB and applies all committed migrations from scratch to guarantee reproducibility
@@ -376,13 +376,23 @@ Prisma migration files are SQL-dialect specific. To ensure 100% reproducibility 
 * Ensures that committed migrations execute cleanly from scratch with zero drift before PR approval.
 
 #### C. Cloud Deployment & GCP Cloud Run (Lab 5 Release)
-* **Provider & Schema Source:** PostgreSQL (`datasource db { provider = "postgresql" }`). The PostgreSQL schema and migrations reside in `prisma/schema.pg.prisma` with dialect-specific migration files committed to `prisma/migrations_pg/`.
+* **Provider & Dedicated Schema Directory:** PostgreSQL (`datasource db { provider = "postgresql" }`). To prevent Prisma migration collision with the SQLite baseline, PostgreSQL configuration resides in its own isolated schema directory:
+  * Schema path: `prisma/postgres/schema.prisma`
+  * Migration directory: `prisma/postgres/migrations/` (located alongside `schema.prisma` as required by Prisma engine)
 * **CI & Pre-Deployment PostgreSQL Verification:**
   * Prior to GCP deployment, the CI pipeline boots an ephemeral PostgreSQL service container (`services: postgres:16`).
-  * Runs pre-deploy migration check against a clean database:
+  * Runs client generation and pre-deploy migration check against a clean database:
     ```bash
-    npx prisma migrate deploy --schema=prisma/schema.pg.prisma
-    npx prisma db seed
+    # Generate Prisma Client from PostgreSQL schema
+    npx prisma generate --schema=prisma/postgres/schema.prisma
+
+    # Apply PostgreSQL migrations to clean test database
+    npx prisma migrate deploy --schema=prisma/postgres/schema.prisma
+
+    # Seed PostgreSQL test database
+    npm run seed:pg
+
+    # Execute test suite against PostgreSQL
     npm test
     ```
   * Proves that the PostgreSQL migrations and seed scripts succeed on a clean, empty database before deployment.
@@ -390,7 +400,7 @@ Prisma migration files are SQL-dialect specific. To ensure 100% reproducibility 
   * Uses Cloud SQL Auth Proxy connecting to GCP Cloud SQL (PostgreSQL 16):
     ```bash
     DATABASE_URL="postgresql://equipflow_user:${DB_PASSWORD}@127.0.0.1:5432/equipflow?sslmode=disable" \
-    npx prisma migrate deploy --schema=prisma/schema.pg.prisma
+    npx prisma migrate deploy --schema=prisma/postgres/schema.prisma
     ```
 * **Credential Segregation:**
   * No sample accounts or local passwords are used in production.
@@ -402,12 +412,14 @@ Prisma migration files are SQL-dialect specific. To ensure 100% reproducibility 
 #### Distinction between Sprint 1 Release and Lab 5 Deployment:
 1. **Sprint 1 Accepted Release (`v0.1.0-sprint1`):**
    * **Scope:** Complete, locally runnable vertical slice on SQLite with passing Vitest, Supertest, and Playwright tests, comprehensive setup documentation in `README.md`, and seed scripts.
-   * **Commit Location:** Merged into `main` and tagged as `v0.1.0-sprint1`.
+   * **Staging & Release Flow:** Features merge into `sprint-1-staging`, followed by a reviewed release PR merged into `main` and tagged as `v0.1.0-sprint1`.
    * **Exclusions:** Does *not* require Docker containers, live GCP URLs, or active cloud pipelines (strictly per Deliverable 1 handout).
 2. **Lab 5 Deployment Release (`v0.2.0-lab5`):**
-   * **Scope:** Branches off `v0.1.0-sprint1` on branch `lab-5/cloud-deployment`.
-   * Adds the multi-stage `Dockerfile`, `.github/workflows/ci-cd.yml`, `prisma/schema.pg.prisma`, and Cloud Run deployment pipeline.
-   * Reviewed by teammate, merged into `main`, and deployed live on GCP.
+   * **Branch & Staging Flow:** Branches off `sprint-1-staging` (incorporating `v0.1.0-sprint1`) onto feature branch `feat/lab5-cloud-deployment`.
+   * Adds the multi-stage `Dockerfile`, `.github/workflows/ci-cd.yml`, `prisma/postgres/schema.prisma`, and Cloud Run deployment pipeline.
+   * **PR 1 (Feature into Staging):** `feat/lab5-cloud-deployment` $\rightarrow$ `sprint-1-staging`, reviewed and approved by teammate.
+   * **PR 2 (Release into Main):** Reviewed release PR from `sprint-1-staging` $\rightarrow$ `main`.
+   * **Deployment & Tag:** The merge commit on `main` is tagged as `v0.2.0-lab5` and deployed directly to GCP Cloud Run.
 
 #### Docker Multi-Stage Build Architecture (for Lab 5):
 * **Stage 1 (Build Client):** Vite builds optimized static assets into `client/dist/`.
