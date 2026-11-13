@@ -27,6 +27,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
+  overflow-x: hidden;
   background-color: var(--color-vanilla-milk) !important;
   color: var(--color-deep-ocean) !important;
 }
@@ -42,6 +43,7 @@ body {
   background-color: var(--color-deep-ocean) !important;
   border-bottom: 2px solid var(--color-airy-blue) !important;
   color: #ffffff;
+  overflow-x: hidden;
 }
 
 .navbar-equipflow .navbar-brand {
@@ -313,6 +315,8 @@ body {
 @media (max-width: 767.98px) {
   .catalog-grid { grid-template-columns: minmax(0, 1fr); }
   .equipment-card-header { align-items: flex-start; flex-direction: column; }
+  .equipment-card-footer { flex-direction: column; }
+  .equipment-card-footer .btn { width: 100%; }
 }
 
 
@@ -345,9 +349,121 @@ body {
 }
 
 @media (max-width: 767.98px) {
-  .navbar-equipflow-content { align-items: flex-start; }
+  .navbar-equipflow-content {
+    align-items: flex-start;
+    padding-left: 0;
+    padding-right: 0;
+  }
   .navbar-equipflow-user {
     width: 100%;
     margin-left: 0 !important;
   }
+  .nav-tab-group {
+    order: 3;
+    width: 100%;
+    margin-top: 0.25rem;
+  }
+  .btn-nav-tab {
+    flex: 1;
+    text-align: center;
+    font-size: 0.85rem;
+    padding: 0.3rem 0.5rem;
+  }
+}
+
+/* Navigation Tabs */
+.nav-tab-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.btn-nav-tab {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  color: #ffffff !important;
+  font-weight: 500;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-nav-tab:hover {
+  background: rgba(137, 185, 230, 0.2) !important;
+  color: #ffffff !important;
+}
+
+.btn-nav-tab.active,
+.btn-nav-tab-active {
+  background: var(--color-airy-blue) !important;
+  color: var(--color-deep-ocean) !important;
+  font-weight: 700;
+}
+
+.btn-nav-tab:focus-visible {
+  outline: 2px solid var(--color-focus-ring-dark) !important;
+  outline-offset: 2px !important;
+}
+
+/* Quota Banner & Progress */
+.quota-banner {
+  background: #ffffff;
+  border: 1px solid var(--color-border-subtle);
+  border-left: 4px solid var(--color-matcha-green);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+}
+
+.progress-quota {
+  background-color: var(--color-frozen-aqua);
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.progress-quota-fill {
+  background-color: var(--color-matcha-green);
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+/* Disabled Request Button */
+.btn-request-disabled {
+  background-color: #E2E8F0 !important;
+  border-color: #CBD5E1 !important;
+  color: #64748B !important;
+  font-weight: 600;
+  cursor: not-allowed;
+}
+
+/* EquipFlow Tables */
+.table-equipflow {
+  background: #ffffff;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+}
+
+.table-equipflow thead th {
+  background-color: var(--color-frozen-aqua) !important;
+  color: var(--color-deep-ocean) !important;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
+  border-bottom: 2px solid var(--color-airy-blue);
+  padding: 0.85rem 1rem;
+}
+
+.table-equipflow tbody td {
+  padding: 0.85rem 1rem;
+  color: var(--color-deep-ocean);
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-size: 0.9rem;
+}
+
+.empty-requests-card {
+  background: var(--color-frozen-aqua);
+  border: 1px solid var(--color-airy-blue);
+  border-radius: 12px;
 }

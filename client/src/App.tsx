@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Login, UserProfile } from './components/Login.js';
 import { Catalog } from './components/Catalog.js';
+import { MyRequests } from './components/MyRequests.js';
 
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('equipflow_token'));
   const [isValidating, setIsValidating] = useState<boolean>(Boolean(token));
+  const [currentTab, setCurrentTab] = useState<'catalog' | 'my-requests'>('catalog');
 
   useEffect(() => {
     const validateToken = async () => {
@@ -21,7 +23,7 @@ export default function App() {
 
         if (response.ok) {
           const data = await response.json();
-          setUser(data.data.user);
+          setUser(data.data.user ?? data.data);
         } else {
           localStorage.removeItem('equipflow_token');
           setToken(null);
@@ -41,6 +43,7 @@ export default function App() {
     localStorage.setItem('equipflow_token', data.token);
     setToken(data.token);
     setUser(data.user);
+    setCurrentTab('catalog');
   };
 
   const handleLogout = async () => {
@@ -84,12 +87,30 @@ export default function App() {
         <div className="container-fluid navbar-equipflow-content">
           <span className="navbar-brand fw-bold mb-0 h1">EquipFlow</span>
           <div className="navbar-equipflow-user ms-auto">
+            {user.role === 'BORROWER' && (
+              <nav className="nav-tab-group me-md-2" aria-label="Portal Navigation">
+                <button
+                  type="button"
+                  className={`btn-nav-tab ${currentTab === 'catalog' ? 'active' : ''}`}
+                  onClick={() => setCurrentTab('catalog')}
+                >
+                  Catalog
+                </button>
+                <button
+                  type="button"
+                  className={`btn-nav-tab ${currentTab === 'my-requests' ? 'active' : ''}`}
+                  onClick={() => setCurrentTab('my-requests')}
+                >
+                  My Requests
+                </button>
+              </nav>
+            )}
             <span className="text-white-50 small d-none d-sm-inline">Signed in as:</span>
             <span className="navbar-user-name fw-semibold text-white">{user.fullName}</span>
             <span className="badge-matcha">{user.role}</span>
             <button
               type="button"
-              className="btn btn-sm btn-nav-signout"
+              className="btn btn-sm btn-nav-signout ms-auto ms-sm-0"
               onClick={handleLogout}
             >
               Sign Out
@@ -99,7 +120,17 @@ export default function App() {
       </header>
 
       <main className="container py-5 flex-grow-1">
-        <Catalog token={token!} />
+        {currentTab === 'catalog' ? (
+          <Catalog
+            token={token!}
+            onNavigateToRequests={() => setCurrentTab('my-requests')}
+          />
+        ) : (
+          <MyRequests
+            token={token!}
+            onNavigateToCatalog={() => setCurrentTab('catalog')}
+          />
+        )}
       </main>
     </div>
   );
