@@ -84,6 +84,7 @@ describe('Sprint 1 - Equipment Catalog UI', () => {
     expect(screen.getByText('RIGOL-123')).toBeInTheDocument();
     expect(screen.getByText('Four-channel digital oscilloscope.')).toBeInTheDocument();
     expect(within(screen.getByRole('dialog')).getByText('GOOD')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /confirm request/i })).not.toBeInTheDocument();
   });
 
   it('UI-01-05: disables request button when item is unavailable', async () => {
@@ -175,8 +176,8 @@ describe('Sprint 1 - Equipment Catalog UI', () => {
 
     render(<Catalog token="valid-token" />);
 
-    // Open detail & request modal
-    fireEvent.click(await screen.findByRole('button', { name: /view details/i }));
+    // Open request modal via Request to Borrow button
+    fireEvent.click(await screen.findByRole('button', { name: /request to borrow rigol oscilloscope/i }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
 
     // Type optional academic purpose note

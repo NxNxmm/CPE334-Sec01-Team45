@@ -312,6 +312,20 @@ describe('Sprint 1 - Borrower Requests & Data Isolation (Feature F-03)', () => {
 
       createdRequestIds.push(successRes.body.data.id);
       expect(failedRes.body.error.code).toBe('EXCEEDS_ACTIVE_QUOTA');
+
+      // Verify DB state: borrower has exactly 3 PENDING requests total,
+      // and among itemA/itemB exactly one is RESERVED and one remains AVAILABLE.
+      const finalPendingCount = await prisma.borrowRequest.count({
+        where: { borrowerId: raceUser.id, status: 'PENDING' },
+      });
+      expect(finalPendingCount).toBe(3);
+
+      const [finalItemA, finalItemB] = await Promise.all([
+        prisma.equipmentItem.findUnique({ where: { id: itemA.id } }),
+        prisma.equipmentItem.findUnique({ where: { id: itemB.id } }),
+      ]);
+      const finalItemStatuses = [finalItemA?.status, finalItemB?.status].sort();
+      expect(finalItemStatuses).toEqual([ItemStatus.AVAILABLE, ItemStatus.RESERVED]);
     });
   });
 });

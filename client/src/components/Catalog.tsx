@@ -47,6 +47,7 @@ export function Catalog({ token }: CatalogProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(null);
+  const [modalMode, setModalMode] = useState<'details' | 'request'>('details');
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
@@ -97,8 +98,9 @@ export function Catalog({ token }: CatalogProps) {
     };
   }, [token]);
 
-  const showDetails = async (item: CatalogItem) => {
+  const showDetails = async (item: CatalogItem, mode: 'details' | 'request' = 'details') => {
     setSelectedItem(item);
+    setModalMode(mode);
     setIsDetailLoading(true);
     setDetailError(null);
     setSubmitError(null);
@@ -233,7 +235,7 @@ export function Catalog({ token }: CatalogProps) {
                   <button
                     type="button"
                     className="btn btn-details flex-grow-1"
-                    onClick={() => void showDetails(item)}
+                    onClick={() => void showDetails(item, 'details')}
                   >
                     View Details<span className="visually-hidden"> for {item.name}</span>
                   </button>
@@ -241,7 +243,7 @@ export function Catalog({ token }: CatalogProps) {
                     type="button"
                     className={`btn flex-grow-1 ${canRequest ? 'btn-primary' : 'btn-request-disabled'}`}
                     disabled={!canRequest}
-                    onClick={() => void showDetails(item)}
+                    onClick={() => void showDetails(item, 'request')}
                     aria-label={`Request to borrow ${item.name}`}
                   >
                     {isQuotaFull
@@ -326,8 +328,8 @@ export function Catalog({ token }: CatalogProps) {
                     </div>
                   )}
 
-                  {/* Request Form if Available and Quota not full */}
-                  {selectedItem.status === 'AVAILABLE' && activeQuota < 3 && !submitSuccess && (
+                  {/* Request Form only when opened via "Request to Borrow" */}
+                  {modalMode === 'request' && selectedItem.status === 'AVAILABLE' && activeQuota < 3 && !submitSuccess && (
                     <form onSubmit={handleConfirmRequest} className="mt-3 pt-3 border-top">
                       <div className="mb-3">
                         <label
@@ -378,14 +380,14 @@ export function Catalog({ token }: CatalogProps) {
                     </form>
                   )}
 
-                  {/* Informational notices when not available or quota exceeded */}
-                  {!submitSuccess && selectedItem.status === 'AVAILABLE' && activeQuota >= 3 && (
+                  {/* Informational notices when in request mode and not available or quota exceeded */}
+                  {modalMode === 'request' && !submitSuccess && selectedItem.status === 'AVAILABLE' && activeQuota >= 3 && (
                     <div className="catalog-alert mt-3" role="alert">
                       Active quota limit reached (3/3). You cannot submit additional borrow requests until existing items are returned.
                     </div>
                   )}
 
-                  {!submitSuccess && selectedItem.status !== 'AVAILABLE' && (
+                  {modalMode === 'request' && !submitSuccess && selectedItem.status !== 'AVAILABLE' && (
                     <div className="catalog-panel mt-3">
                       This item is currently {statusLabel[selectedItem.status].toLowerCase()} and cannot be requested.
                     </div>
@@ -394,8 +396,8 @@ export function Catalog({ token }: CatalogProps) {
               )}
             </div>
 
-            {/* Standard Close button when not in active request form */}
-            {(selectedItem.status !== 'AVAILABLE' || activeQuota >= 3) && (
+            {/* Standard Close button when in details-only mode or when request form is not active */}
+            {(modalMode === 'details' || Boolean(submitSuccess) || selectedItem.status !== 'AVAILABLE' || activeQuota >= 3) && (
               <footer className="catalog-modal-footer">
                 <button
                   type="button"
