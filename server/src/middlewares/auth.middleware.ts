@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { Role } from '@prisma/client';
 import { AuthService, TokenPayload } from '../services/auth.service.js';
+import { getJwtSecret } from '../config/jwt.js';
 
 export interface AuthenticatedRequest extends Request {
   user?: TokenPayload;
@@ -20,7 +21,19 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
   }
 
   const token = authHeader.substring(7).trim();
-  const secret = process.env.JWT_SECRET || 'dev-secret-key-equipflow-sprint-1';
+
+  let secret: string;
+  try {
+    secret = getJwtSecret();
+  } catch (_err) {
+    res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Authentication configuration error',
+      },
+    });
+    return;
+  }
 
   let decoded: TokenPayload;
   try {

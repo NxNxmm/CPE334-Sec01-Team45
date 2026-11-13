@@ -223,5 +223,75 @@ describe('Sprint 1 - Authentication & Role Identity (Feature F-01)', () => {
       expect(rounds).toBeGreaterThanOrEqual(10);
     });
   });
+
+  describe('Regression: JWT signing-key fail-closed configuration', () => {
+    const originalSecret = process.env.JWT_SECRET;
+
+    it('should throw an error in getJwtSecret when JWT_SECRET is undefined, empty, or whitespace', async () => {
+      const { getJwtSecret } = await import('../../src/config/jwt.js');
+
+      // Test undefined
+      delete process.env.JWT_SECRET;
+      expect(() => getJwtSecret()).toThrow(/JWT_SECRET.*missing/i);
+
+      // Test empty string
+      process.env.JWT_SECRET = '';
+      expect(() => getJwtSecret()).toThrow(/JWT_SECRET.*missing/i);
+
+      // Test whitespace
+      process.env.JWT_SECRET = '   ';
+      expect(() => getJwtSecret()).toThrow(/JWT_SECRET.*missing/i);
+
+      // Restore
+      process.env.JWT_SECRET = originalSecret;
+    });
+
+    it('should fail closed (HTTP 500) on login attempt when JWT_SECRET is missing, never issuing a token', async () => {
+      delete process.env.JWT_SECRET;
+
+      try {
+        const response = await request(app)
+          .post('/api/v1/auth/login')
+          .send({
+            email: 'borrower@cpe.kmutt.ac.th',
+            password: 'Password123!',
+          });
+
+        expect(response.status).toBe(500);
+        expect(response.body).toHaveProperty('error');
+        expect(response.body.error.code).toBe('INTERNAL_ERROR');
+        expect(response.body).not.toHaveProperty('data');
+      } finally {
+        process.env.JWT_SECRET = originalSecret;
+      }
+    });
+
+    it('should fail closed (HTTP 500) on token verification in requireAuth when JWT_SECRET is missing', async () => {
+      // First obtain a valid token while JWT_SECRET is present
+      const loginRes = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'borrower@cpe.kmutt.ac.th',
+          password: 'Password123!',
+        });
+      const validToken = loginRes.body.data.token;
+
+      // Delete secret to simulate missing configuration during verification
+      delete process.env.JWT_SECRET;
+
+      try {
+        const response = await request(app)
+          .get('/api/v1/auth/me')
+          .set('Authorization', `Bearer ${validToken}`);
+
+        expect(response.status).toBe(500);
+        expect(response.body).toHaveProperty('error');
+        expect(response.body.error.code).toBe('INTERNAL_ERROR');
+        expect(response.body.error.message).toBe('Authentication configuration error');
+      } finally {
+        process.env.JWT_SECRET = originalSecret;
+      }
+    });
+  });
 });
 

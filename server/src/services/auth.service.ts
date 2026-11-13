@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Role } from '@prisma/client';
 import { prisma } from '../prisma.js';
+import { getJwtSecret } from '../config/jwt.js';
 
 export interface TokenPayload {
   userId: string;
@@ -22,10 +23,6 @@ export interface SanitizedUser {
 }
 
 export class AuthService {
-  private static getJwtSecret(): string {
-    return process.env.JWT_SECRET || 'dev-secret-key-equipflow-sprint-1';
-  }
-
   static async login(email: string, password: string): Promise<{ token: string; user: SanitizedUser }> {
     if (!email || !password) {
       throw { status: 400, code: 'INVALID_CREDENTIALS', message: 'Email and password are required' };
@@ -56,7 +53,7 @@ export class AuthService {
       jti,
     };
 
-    const token = jwt.sign(payload, this.getJwtSecret(), { expiresIn: '24h' });
+    const token = jwt.sign(payload, getJwtSecret(), { expiresIn: '24h' });
 
     return {
       token,
