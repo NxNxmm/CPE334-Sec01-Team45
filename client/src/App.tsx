@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Login, UserProfile } from './components/Login.js';
 import { Catalog } from './components/Catalog.js';
 import { MyRequests } from './components/MyRequests.js';
+import { CustodianDesk } from './components/CustodianDesk.js';
 
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -120,16 +121,12 @@ export default function App() {
       </header>
 
       <main className="container py-5 flex-grow-1">
-        {currentTab === 'catalog' ? (
-          <Catalog
-            token={token!}
-            onNavigateToRequests={() => setCurrentTab('my-requests')}
-          />
+        {user.role === 'CUSTODIAN' ? (
+          <CustodianDesk token={token!} />
+        ) : currentTab === 'catalog' ? (
+          <Catalog token={token!} onNavigateToRequests={() => setCurrentTab('my-requests')} />
         ) : (
-          <MyRequests
-            token={token!}
-            onNavigateToCatalog={() => setCurrentTab('catalog')}
-          />
+          <MyRequests token={token!} onNavigateToCatalog={() => setCurrentTab('catalog')} />
         )}
       </main>
     </div>

@@ -467,3 +467,34 @@ body {
   border: 1px solid var(--color-airy-blue);
   border-radius: 12px;
 }
+
+/* Custodian triage and checkout */
+.student-id-badge {
+  display: inline-block;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  background: var(--color-frozen-aqua);
+  color: var(--color-deep-ocean);
+  white-space: nowrap;
+}
+.checkout-due-callout {
+  padding: 0.8rem;
+  border: 1px solid var(--color-airy-blue);
+  border-radius: 6px;
+  background: var(--color-frozen-aqua);
+  color: var(--color-deep-ocean);
+}
+.checkout-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  padding: 0 1.3rem 1.3rem;
+}
+.custodian-success {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--color-matcha-green);
+  border-radius: 8px;
+  background: var(--color-matcha-green);
+  color: var(--color-deep-ocean);
+}

@@ -390,7 +390,7 @@ Retrieves the authenticated borrower's personal pending requests and active loan
 ## 5. Custodian Operations Endpoints
 
 ### 5.1 List Pending Requests Triage Queue
-Retrieves all pending borrow requests across all borrowers, ordered chronologically.
+Retrieves all pending borrow requests across all borrowers, ordered chronologically, and active department loans for the custodian monitor.
 
 * **Method:** `GET`
 * **Path:** `/api/v1/custodian/requests`
@@ -401,27 +401,39 @@ Retrieves all pending borrow requests across all borrowers, ordered chronologica
 ```json
 {
   "success": true,
-  "data": [
-    {
-      "id": "req_cuid101",
-      "status": "PENDING",
-      "requestNote": "Needed for CPE334 Lab hardware demonstration",
-      "createdAt": "2026-11-12T18:30:00.000Z",
-      "borrower": {
-        "id": "usr_cuid001",
-        "fullName": "Student Borrower One",
-        "studentOrStaffId": "67070501001",
-        "email": "borrower@cpe.kmutt.ac.th"
-      },
-      "item": {
-        "id": "itm_cuid001",
-        "assetTag": "CPE-OSC-001",
-        "name": "Rigol DS1054Z Digital Oscilloscope",
-        "category": "Measurement",
-        "status": "RESERVED"
+  "data": {
+    "requests": [
+      {
+        "id": "req_cuid101",
+        "status": "PENDING",
+        "requestNote": "Needed for CPE334 Lab hardware demonstration",
+        "createdAt": "2026-11-12T18:30:00.000Z",
+        "borrower": {
+          "id": "usr_cuid001",
+          "fullName": "Student Borrower One",
+          "studentOrStaffId": "67070501001",
+          "email": "borrower@cpe.kmutt.ac.th"
+        },
+        "item": {
+          "id": "itm_cuid001",
+          "assetTag": "CPE-OSC-001",
+          "name": "Rigol DS1054Z Digital Oscilloscope",
+          "category": "Measurement",
+          "status": "RESERVED"
+        }
       }
-    }
-  ],
+    ],
+    "activeLoans": [
+      {
+        "id": "loan_cuid201",
+        "checkedOutAt": "2026-11-12T18:40:00.000Z",
+        "dueDate": "2026-11-19T18:40:00.000Z",
+        "borrower": { "fullName": "Student Borrower One", "studentOrStaffId": "67070501001" },
+        "custodian": { "fullName": "CPE Lab Custodian", "studentOrStaffId": "STAFF-001" },
+        "item": { "assetTag": "CPE-OSC-001", "name": "Rigol DS1054Z Digital Oscilloscope" }
+      }
+    ]
+  },
   "meta": {
     "total": 1,
     "timestamp": "2026-11-12T18:35:00.000Z"
@@ -445,7 +457,7 @@ Retrieves all pending borrow requests across all borrowers, ordered chronologica
 ---
 
 ### 5.2 Execute Equipment Checkout
-Records the physical handover of equipment against a pending request. Executed inside an atomic transaction: validates request is `PENDING`, validates item is `RESERVED`, transitions item to `CHECKED_OUT`, sets request to `APPROVED`, creates an active `Loan` record, calculates `dueDate = now() + 7 days`, and records `custodianId`.
+Records the physical handover of equipment against a pending request. Executed inside an atomic transaction: validates request is `PENDING`, validates item is `RESERVED`, conditionally transitions both records, sets request to `APPROVED`, creates an active `Loan` record, calculates `dueDate = checkedOutAt + 7 days`, and records `custodianId` from the authenticated session.
 
 * **Method:** `POST`
 * **Path:** `/api/v1/custodian/checkouts`
