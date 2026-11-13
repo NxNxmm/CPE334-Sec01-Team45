@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { authRouter } from './routes/auth.routes.js';
 import { custodianRouter } from './routes/custodian.routes.js';
+import { catalogRouter } from './routes/catalog.routes.js';
 
 export const app = express();
 
@@ -15,4 +16,5 @@ app.get('/api/health', (_request, response) => {
 
 // Sprint 1 REST API Endpoints under /api/v1
 app.use('/api/v1/auth', authRouter);
+app.use('/api/v1/items', catalogRouter);
 app.use('/api/v1/custodian', custodianRouter);
