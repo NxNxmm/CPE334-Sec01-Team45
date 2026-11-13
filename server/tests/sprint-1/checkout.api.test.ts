@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
-import { ItemCondition, ItemStatus, PrismaClient, RequestStatus } from '@prisma/client';
+import { ItemCondition, ItemStatus, PrismaClient, RequestStatus, Role } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 import { app } from '../../src/app.js';
 
 const prisma = new PrismaClient();
@@ -8,19 +9,37 @@ let borrowerToken = '';
 let custodianToken = '';
 let borrowerId = '';
 let custodianId = '';
+let borrowerFullName = '';
+let borrowerStudentId = '';
 const itemIds: string[] = [];
 const requestIds: string[] = [];
 const loanIds: string[] = [];
+const userIds: string[] = [];
 
 describe('Sprint 1 - Custodian Checkout (Feature F-04)', () => {
   beforeAll(async () => {
     await prisma.$connect();
+    const borrowerEmail = `checkout-test-${Date.now()}-${Math.random().toString(16).slice(2, 7)}@cpe.kmutt.ac.th`;
+    const passwordHash = await bcrypt.hash('Password123!', 10);
+    const borrower = await prisma.user.create({
+      data: {
+        email: borrowerEmail,
+        passwordHash,
+        fullName: 'Checkout Test Borrower',
+        studentOrStaffId: `STU-CHK-${Date.now()}-${Math.random().toString(16).slice(2, 7)}`,
+        role: Role.BORROWER,
+      },
+    });
+    userIds.push(borrower.id);
+    borrowerId = borrower.id;
+    borrowerFullName = borrower.fullName;
+    borrowerStudentId = borrower.studentOrStaffId;
+
     const [borrowerLogin, custodianLogin] = await Promise.all([
-      request(app).post('/api/v1/auth/login').send({ email: 'borrower@cpe.kmutt.ac.th', password: 'Password123!' }),
+      request(app).post('/api/v1/auth/login').send({ email: borrowerEmail, password: 'Password123!' }),
       request(app).post('/api/v1/auth/login').send({ email: 'custodian@cpe.kmutt.ac.th', password: 'Password123!' }),
     ]);
     borrowerToken = borrowerLogin.body.data.token;
-    borrowerId = borrowerLogin.body.data.user.id;
     custodianToken = custodianLogin.body.data.token;
     custodianId = custodianLogin.body.data.user.id;
   });
@@ -29,6 +48,7 @@ describe('Sprint 1 - Custodian Checkout (Feature F-04)', () => {
     if (loanIds.length) await prisma.loan.deleteMany({ where: { id: { in: loanIds } } });
     if (requestIds.length) await prisma.borrowRequest.deleteMany({ where: { id: { in: requestIds } } });
     if (itemIds.length) await prisma.equipmentItem.deleteMany({ where: { id: { in: itemIds } } });
+    if (userIds.length) await prisma.user.deleteMany({ where: { id: { in: userIds } } });
     await prisma.$disconnect();
   });
 
@@ -62,7 +82,7 @@ describe('Sprint 1 - Custodian Checkout (Feature F-04)', () => {
         id: borrowRequest.id,
         status: 'PENDING',
         requestNote: 'Purpose QUEUE',
-        borrower: expect.objectContaining({ id: borrowerId, fullName: 'Student Borrower One', studentOrStaffId: '67070501001' }),
+        borrower: expect.objectContaining({ id: borrowerId, fullName: borrowerFullName, studentOrStaffId: borrowerStudentId }),
         item: expect.objectContaining({ id: item.id, assetTag: item.assetTag, name: item.name, status: 'RESERVED' }),
       }),
     ]));
