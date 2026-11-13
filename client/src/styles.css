@@ -16,7 +16,7 @@
   --color-error-border: #DC2626;
 
   /* Subtle Borders */
-  --color-border-subtle: #D9F0FF;
+  --color-border-subtle: #DCE8F2;
 
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--color-deep-ocean);
@@ -186,4 +186,131 @@ body {
 /* Loading Spinner */
 .spinner-deep-ocean {
   color: var(--color-deep-ocean) !important;
+}
+
+/* Read-only equipment catalog */
+.catalog-heading h1,
+.equipment-card h2 {
+  color: var(--color-deep-ocean-dark);
+}
+
+.catalog-muted { color: var(--color-muted-slate); }
+.eyebrow {
+  color: var(--color-muted-slate);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+.equipment-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-vanilla-milk);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgb(49 70 90 / 8%);
+}
+.equipment-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  background: var(--color-frozen-aqua);
+  border-bottom: 1px solid var(--color-airy-blue);
+}
+.asset-tag {
+  color: var(--color-deep-ocean);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  color: var(--color-deep-ocean);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.025em;
+  white-space: nowrap;
+}
+.status-available { background: var(--color-matcha-green); }
+.status-reserved { background: var(--color-airy-blue); }
+.status-checked_out {
+  background: var(--color-frozen-aqua);
+  border: 1px solid var(--color-airy-blue);
+}
+.status-maintenance, .status-retired { background: var(--color-error-bg); color: var(--color-error-text); }
+.equipment-card-body {
+  padding: 1.2rem;
+  flex: 1;
+}
+.equipment-summary, .detail-list { display: grid; gap: 0.8rem; }
+.equipment-summary div, .detail-list div { display: flex; justify-content: space-between; gap: 1rem; }
+.equipment-summary dt, .detail-list dt { color: var(--color-muted-slate); font-size: 0.82rem; font-weight: 600; }
+.equipment-summary dd, .detail-list dd { margin: 0; color: var(--color-deep-ocean); font-size: 0.9rem; text-align: right; }
+.equipment-card-footer { padding: 0 1.2rem 1.2rem; }
+.btn-details {
+  width: 100%;
+  border: 1px solid var(--color-airy-blue);
+  color: var(--color-deep-ocean);
+  font-weight: 600;
+}
+.btn-details:hover { background: var(--color-frozen-aqua); border-color: var(--color-deep-ocean); color: var(--color-deep-ocean); }
+.catalog-panel { padding: 1.25rem; background: var(--color-frozen-aqua); border-radius: 10px; color: var(--color-deep-ocean); }
+.catalog-alert { padding: 1rem; background: var(--color-error-bg); border: 1px solid var(--color-error-border); border-radius: 8px; color: var(--color-error-text); }
+.catalog-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: 1rem;
+  background: rgb(28 42 55 / 65%);
+}
+.catalog-modal {
+  width: min(100%, 560px);
+  overflow: hidden;
+  background: var(--color-vanilla-milk);
+  border: 1px solid var(--color-airy-blue);
+  border-radius: 12px;
+  box-shadow: 0 1rem 3rem rgb(0 0 0 / 22%);
+}
+.catalog-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.15rem 1.3rem;
+  background: var(--color-deep-ocean);
+  color: #fff;
+}
+.modal-asset-tag { color: var(--color-airy-blue); }
+.catalog-modal-body { padding: 1.3rem; color: var(--color-deep-ocean); }
+.catalog-modal-footer { display: flex; justify-content: flex-end; padding: 0 1.3rem 1.3rem; }
+.btn-modal-close {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--color-airy-blue);
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  font-size: 1.4rem;
+  line-height: 1;
+}
+.btn-modal-close:focus-visible { outline-color: var(--color-focus-ring-dark) !important; }
+@media (max-width: 991px) {
+  .catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 575px) {
+  .catalog-grid { grid-template-columns: minmax(0, 1fr); }
+  .equipment-card-header { align-items: flex-start; flex-direction: column; }
 }

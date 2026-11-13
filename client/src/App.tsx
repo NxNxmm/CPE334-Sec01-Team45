@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Login, UserProfile } from './components/Login.js';
+import { Catalog } from './components/Catalog.js';
 
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -97,23 +98,8 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content Area */}
       <main className="container py-5 flex-grow-1">
-        <div className="dashboard-card shadow-sm p-4 mb-4">
-          <h2 className="h4 fw-bold mb-2" style={{ color: 'var(--color-deep-ocean)' }}>
-            Welcome back, {user.fullName}!
-          </h2>
-          <p className="mb-3" style={{ color: 'var(--color-deep-ocean)', opacity: 0.85 }}>
-            Academic ID: <code>{user.studentOrStaffId}</code> &bull; Email: <code>{user.email}</code>
-          </p>
-          <div className="dashboard-banner p-4">
-            <h3 className="h6 fw-bold mb-2">🎉 Authentication & Role Identity (Feature F-01) Active</h3>
-            <p className="mb-0 small" style={{ lineHeight: '1.6' }}>
-              Your session is securely verified with JWT Bearer authentication and per-token server-side revocation.
-              Equipment catalog browsing and borrowing request workflows will be enabled in upcoming sprint issues.
-            </p>
-          </div>
-        </div>
+        <Catalog token={token!} />
       </main>
     </div>
   );
