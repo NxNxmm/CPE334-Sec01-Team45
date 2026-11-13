@@ -30,16 +30,16 @@ This document establishes the comprehensive Test Driven Development (TDD) and Te
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final Status |
 |---|---|---|---|---|---|:---:|
-| **API-01-01** | API | FR-01 / AC-AUTH-01 | User login with valid email and password | Returns HTTP 200 with signed JWT Bearer token and sanitized user profile (no passwordHash) | `server/tests/sprint-1/auth.api.test.ts` | Planned |
-| **API-01-02** | API | FR-01 / AC-AUTH-02 | User login with invalid password | Returns HTTP 401 with error code `INVALID_CREDENTIALS` | `server/tests/sprint-1/auth.api.test.ts` | Planned |
-| **API-01-03** | API | FR-01 / AC-AUTH-02 | User login with non-existent email | Returns HTTP 401 with error code `INVALID_CREDENTIALS` | `server/tests/sprint-1/auth.api.test.ts` | Planned |
-| **API-01-04** | API | FR-02 / AC-AUTH-03 | Fetch authenticated identity via `/api/v1/auth/me` | Returns HTTP 200 with matching authenticated user ID, email, and role | `server/tests/sprint-1/auth.api.test.ts` | Planned |
-| **API-01-05** | API | FR-03 / AC-AUTH-04 | User logout via `POST /api/v1/auth/logout` | Returns HTTP 200; token `jti` persisted to `RevokedToken` table | `server/tests/sprint-1/auth.api.test.ts` | Planned |
-| **API-01-06** | API | FR-03 / AC-AUTH-04 | Request protected endpoint using revoked token | Returns HTTP 401 Unauthorized with code `TOKEN_REVOKED` | `server/tests/sprint-1/auth.api.test.ts` | Planned |
-| **API-01-07** | API | FR-03 / AC-AUTH-05 | Two concurrent sessions for same user; logout Session 1 | Session 1 returns HTTP 401; concurrent Session 2 continues to return HTTP 200 | `server/tests/sprint-1/auth.api.test.ts` | Planned |
-| **API-01-08** | API | FR-04 / AC-AUTH-06 | Request protected endpoint without Authorization header | Returns HTTP 401 Unauthorized with code `UNAUTHENTICATED` | `server/tests/sprint-1/auth.api.test.ts` | Planned |
-| **API-01-09** | API | FR-04 / AC-AUTH-07 | Borrower attempts to access `/api/v1/custodian/requests` | Returns HTTP 403 Forbidden with code `FORBIDDEN_ROLE` | `server/tests/sprint-1/auth.api.test.ts` | Planned |
-| **API-01-10** | API | NFR-01 / AC-AUTH-08 | Verify password hashing in database | `passwordHash` string in DB begins with `$2a$` or `$2b$` and salt rounds $\ge 10$ | `server/tests/sprint-1/auth.api.test.ts` | Planned |
+| **API-01-01** | API | FR-01 / AC-AUTH-01 | User login with valid email and password | Returns HTTP 200 with signed JWT Bearer token and sanitized user profile (no passwordHash) | `server/tests/sprint-1/auth.api.test.ts` | **Passed** |
+| **API-01-02** | API | FR-01 / AC-AUTH-02 | User login with invalid password | Returns HTTP 401 with error code `INVALID_CREDENTIALS` | `server/tests/sprint-1/auth.api.test.ts` | **Passed** |
+| **API-01-03** | API | FR-01 / AC-AUTH-02 | User login with non-existent email | Returns HTTP 401 with error code `INVALID_CREDENTIALS` | `server/tests/sprint-1/auth.api.test.ts` | **Passed** |
+| **API-01-04** | API | FR-02 / AC-AUTH-03 | Fetch authenticated identity via `/api/v1/auth/me` | Returns HTTP 200 with matching authenticated user ID, email, and role | `server/tests/sprint-1/auth.api.test.ts` | **Passed** |
+| **API-01-05** | API | FR-03 / AC-AUTH-04 | User logout via `POST /api/v1/auth/logout` | Returns HTTP 200; token `jti` persisted to `RevokedToken` table | `server/tests/sprint-1/auth.api.test.ts` | **Passed** |
+| **API-01-06** | API | FR-03 / AC-AUTH-04 | Request protected endpoint using revoked token | Returns HTTP 401 Unauthorized with code `TOKEN_REVOKED` | `server/tests/sprint-1/auth.api.test.ts` | **Passed** |
+| **API-01-07** | API | FR-03 / AC-AUTH-05 | Two concurrent sessions for same user; logout Session 1 | Session 1 returns HTTP 401; concurrent Session 2 continues to return HTTP 200 | `server/tests/sprint-1/auth.api.test.ts` | **Passed** |
+| **API-01-08** | API | FR-04 / AC-AUTH-06 | Request protected endpoint without Authorization header | Returns HTTP 401 Unauthorized with code `UNAUTHENTICATED` | `server/tests/sprint-1/auth.api.test.ts` | **Passed** |
+| **API-01-09** | API | FR-04 / AC-AUTH-07 | Borrower attempts to access `/api/v1/custodian/requests` | Returns HTTP 403 Forbidden with code `FORBIDDEN_ROLE` | `server/tests/sprint-1/auth.api.test.ts` | **Passed** |
+| **API-01-10** | API | NFR-01 / AC-AUTH-08 | Verify password hashing in database | `passwordHash` string in DB begins with `$2a$` or `$2b$` and salt rounds $\ge 10$ | `server/tests/sprint-1/auth.api.test.ts` | **Passed** |
 | **API-01-11** | API | FR-05 / AC-CAT-01 | Browse catalog via `GET /api/v1/items` | Returns HTTP 200 with array of equipment items and accurate availability statuses | `server/tests/sprint-1/catalog.api.test.ts` | Planned |
 | **API-01-12** | API | FR-06 / AC-CAT-02 | Fetch single item details via `/api/v1/items/:id` | Returns HTTP 200 with technical description, serial number, and condition | `server/tests/sprint-1/catalog.api.test.ts` | Planned |
 | **API-01-13** | API | FR-06 / AC-CAT-02 | Fetch non-existent item detail ID | Returns HTTP 404 Not Found with code `ITEM_NOT_FOUND` | `server/tests/sprint-1/catalog.api.test.ts` | Planned |
@@ -57,8 +57,8 @@ This document establishes the comprehensive Test Driven Development (TDD) and Te
 | **API-01-25** | API | BR-02 / AC-CHK-06 | Concurrent checkout calls for same pending request | Exactly 1 checkout succeeds (HTTP 201); second call returns HTTP 409 Conflict | `server/tests/sprint-1/checkout.api.test.ts` | Planned |
 | **API-01-26** | API | BR-03 / AC-CHK-07 | Borrower attempts to invoke checkout endpoint | Returns HTTP 403 Forbidden with code `FORBIDDEN_ROLE` | `server/tests/sprint-1/checkout.api.test.ts` | Planned |
 | **API-01-27** | API | BR-04 / AC-REQ-03 | Concurrent requests from same borrower exceeding quota (starts at 2, submits 2 items concurrently) | Exactly 1 request succeeds (total quota reaches 3); second request rejected with HTTP 400 (`EXCEEDS_ACTIVE_QUOTA`) | `server/tests/sprint-1/requests.api.test.ts` | Planned |
-| **UI-01-01** | UI | AC-AUTH-01 | Login form rendering, credentials input & submit | Form renders email/password; button shows loading state during submit | `client/tests/sprint-1/Login.test.tsx` | Planned |
-| **UI-01-02** | UI | AC-AUTH-02 | Invalid login alert banner rendering | Displays red alert banner upon HTTP 401; preserves entered email address | `client/tests/sprint-1/Login.test.tsx` | Planned |
+| **UI-01-01** | UI | AC-AUTH-01 | Login form rendering, credentials input & submit | Form renders email/password; button shows loading state during submit | `client/tests/sprint-1/Login.test.tsx` | **Passed** |
+| **UI-01-02** | UI | AC-AUTH-02 | Invalid login alert banner rendering | Displays red alert banner upon HTTP 401; preserves entered email address | `client/tests/sprint-1/Login.test.tsx` | **Passed** |
 | **UI-01-03** | UI | AC-CAT-01 | Catalog grid rendering & status badges | Cards render name, category, and correct badge (`.badge-avail`, `.badge-out`) | `client/tests/sprint-1/Catalog.test.tsx` | Planned |
 | **UI-01-04** | UI | AC-CAT-02 | Detail modal opens with specs and serial number | Clicking item opens modal with full description, serial, and condition | `client/tests/sprint-1/Catalog.test.tsx` | Planned |
 | **UI-01-05** | UI | AC-REQ-01 | Request button disabled when item is unavailable | "Request to Borrow" button is disabled with gray badge if status != AVAILABLE | `client/tests/sprint-1/Catalog.test.tsx` | Planned |
