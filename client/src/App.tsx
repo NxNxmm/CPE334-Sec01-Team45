@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Login, UserProfile } from './components/Login.js';
+import { Catalog } from './components/Catalog.js';
 
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -79,16 +80,16 @@ export default function App() {
   return (
     <div className="min-vh-100 d-flex flex-column" style={{ backgroundColor: 'var(--color-vanilla-milk)' }}>
       {/* Global Navbar */}
-      <header className="navbar navbar-expand navbar-equipflow px-4 py-3 shadow-sm">
-        <div className="container-fluid">
+      <header className="navbar navbar-equipflow px-3 px-md-4 py-3 shadow-sm">
+        <div className="container-fluid navbar-equipflow-content">
           <span className="navbar-brand fw-bold mb-0 h1">EquipFlow</span>
-          <div className="d-flex align-items-center gap-3 ms-auto">
+          <div className="navbar-equipflow-user ms-auto">
             <span className="text-white-50 small d-none d-sm-inline">Signed in as:</span>
-            <span className="fw-semibold text-white">{user.fullName}</span>
+            <span className="navbar-user-name fw-semibold text-white">{user.fullName}</span>
             <span className="badge-matcha">{user.role}</span>
             <button
               type="button"
-              className="btn btn-sm btn-nav-signout ms-2"
+              className="btn btn-sm btn-nav-signout"
               onClick={handleLogout}
             >
               Sign Out
@@ -97,23 +98,8 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content Area */}
       <main className="container py-5 flex-grow-1">
-        <div className="dashboard-card shadow-sm p-4 mb-4">
-          <h2 className="h4 fw-bold mb-2" style={{ color: 'var(--color-deep-ocean)' }}>
-            Welcome back, {user.fullName}!
-          </h2>
-          <p className="mb-3" style={{ color: 'var(--color-deep-ocean)', opacity: 0.85 }}>
-            Academic ID: <code>{user.studentOrStaffId}</code> &bull; Email: <code>{user.email}</code>
-          </p>
-          <div className="dashboard-banner p-4">
-            <h3 className="h6 fw-bold mb-2">🎉 Authentication & Role Identity (Feature F-01) Active</h3>
-            <p className="mb-0 small" style={{ lineHeight: '1.6' }}>
-              Your session is securely verified with JWT Bearer authentication and per-token server-side revocation.
-              Equipment catalog browsing and borrowing request workflows will be enabled in upcoming sprint issues.
-            </p>
-          </div>
-        </div>
+        <Catalog token={token!} />
       </main>
     </div>
   );
