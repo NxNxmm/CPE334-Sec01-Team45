@@ -1,10 +1,10 @@
 # Sprint 1 Engineering Specification
 **EquipFlow Hardware Inventory & Borrowing Vertical Slice**
 
-**Document ID:** `SPEC-SPRINT-01`  
-**Version:** `1.0.0`  
-**Status:** Draft  
-**Target Release:** `v0.1.0-sprint1`  
+**Document ID:** `SPEC-SPRINT-01`
+**Version:** `1.0.0`
+**Status:** Approved (Verified `v0.1.0-sprint1`)
+**Target Release:** `v0.1.0-sprint1`
 **Deadline:** 15 November 2026 at 23:59 (LEB2 Assignment Checkpoint)  
 
 ---

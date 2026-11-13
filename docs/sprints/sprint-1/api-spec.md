@@ -1,10 +1,10 @@
 # Sprint 1 REST API Specification
 **EquipFlow Hardware Inventory & Borrowing Endpoints**
 
-**Document ID:** `API-SPEC-SPRINT-01`  
-**Version:** `1.0.0`  
-**Status:** Draft  
-**Target Release:** `v0.1.0-sprint1`  
+**Document ID:** `API-SPEC-SPRINT-01`
+**Version:** `1.0.0`
+**Status:** Approved (Verified `v0.1.0-sprint1`)
+**Target Release:** `v0.1.0-sprint1`
 
 ---
 

@@ -1,0 +1,71 @@
+================================================================================
+EquipFlow Sprint 1 — Automated Test Execution & Verification Log (Part F)
+Target Release: v0.1.0-sprint1
+Staging Base Commit SHA: f098b1ee9abff324869e29cff2190b2ac86cb6ba (f098b1e)
+Branch: test/sprint1-verification -> sprint-1-staging -> main
+Executed At: 2026-11-14T02:08:05+07:00
+================================================================================
+
+$ git rev-parse HEAD
+f098b1ee9abff324869e29cff2190b2ac86cb6ba
+
+--------------------------------------------------------------------------------
+1. Backend API & Integration Test Suite (Vitest + Supertest + SQLite)
+Command: npm test (npm run test --workspace server)
+--------------------------------------------------------------------------------
+> @equipflow/server@0.1.0 test
+> vitest run
+
+ RUN  v5.1.0 C:/Year3/Semester 1/CPE334 Software Engineering/CPE334-Sec01-Team45/server
+
+ ✓ tests/sprint-1/catalog.api.test.ts (4 tests) 578ms
+ ✓ tests/sprint-1/checkout.api.test.ts (5 tests) 701ms
+ ✓ tests/sprint-1/requests.api.test.ts (7 tests) 1191ms
+ ✓ tests/sprint-1/auth.api.test.ts (13 tests) 2371ms
+   ✓ Sprint 1 - Authentication & Role Identity (Feature F-01) (13)
+     ✓ API-01-07: Two concurrent sessions for same user; logout Session 1 (1)
+       ✓ should invalidate Session 1 (401) while concurrent Session 2 continues to return 200 467ms
+
+ Test Files  4 passed (4)
+      Tests  29 passed (29)
+   Duration  3.06s
+
+--------------------------------------------------------------------------------
+2. Frontend UI Component Test Suite (Vitest + React Testing Library)
+Command: npm run test:client (npm run test --workspace client)
+--------------------------------------------------------------------------------
+> @equipflow/client@0.1.0 test
+> vitest run
+
+ RUN  v5.1.0 C:/Year3/Semester 1/CPE334 Software Engineering/CPE334-Sec01-Team45/client
+
+ ✓ tests/sprint-1/MyRequests.test.tsx (3 tests) 167ms
+ ✓ tests/sprint-1/CustodianDesk.test.tsx (3 tests) 208ms
+ ✓ tests/sprint-1/Catalog.test.tsx (6 tests) 224ms
+ ✓ tests/sprint-1/Login.test.tsx (3 tests) 266ms
+
+ Test Files  4 passed (4)
+      Tests  15 passed (15)
+   Duration  2.74s
+
+--------------------------------------------------------------------------------
+3. End-to-End Browser Verification Suite (Playwright Chromium)
+Command: npx playwright test (npm run test:e2e)
+--------------------------------------------------------------------------------
+Running 4 tests using 1 worker
+
+  ok 1 [chromium] › e2e\sprint-1\access-control.spec.ts:12:3 › E2E-01-03: Access Control & Role Segregation (Borrower Forbidden from Custodian Desk) › Enforces 401 on unauthenticated access and 403 FORBIDDEN_ROLE when Borrower attempts Custodian operations (870ms)
+  ok 2 [chromium] › e2e\sprint-1\domain-journey.spec.ts:49:3 › E2E-01-01: Full Domain Journey (Borrower Request to Custodian Checkout) › Borrower logs in, requests available item, Custodian logs in, checks out item, and DB persists 7-day loan (1.8s)
+  ok 3 [chromium] › e2e\sprint-1\layout-a11y.spec.ts:12:3 › E2E-01-04: Viewport Layout Audit (375px / 768px / 1280px) & Keyboard Focus Rings › Verifies zero horizontal scroll across 375px, 768px, and 1280px viewports and high-contrast focus rings (1.4s)
+  ok 4 [chromium] › e2e\sprint-1\rejection-rules.spec.ts:19:3 › E2E-01-02: Meaningful Business Rule Rejection (Duplicate Booking / Checkout & Quota) › Disables occupied equipment on catalog and surfaces human-readable rejection banner on conflict (933ms)
+
+  4 passed (8.1s)
+
+--------------------------------------------------------------------------------
+Summary Totals:
+- Backend Integration Tests: 29 / 29 Passed
+- Frontend Component Tests:  15 / 15 Passed
+- Playwright E2E Scenarios:   4 / 4 Passed
+- Total Automated Assertions: 48 / 48 Test Suites & Cases Passed (0 Failed, 0 Skipped)
+================================================================================
+
