@@ -38,9 +38,18 @@ The seed is safe to re-run and ensures six specification fixtures, including an 
 
 - `npm run dev` — run the Vite client and Express API together (Vite provides client hot reload; restart the API after server code changes)
 - `npm run build` — build the client and type-check/compile the API
+- `npm test` — run backend API & integration tests (`server/tests/sprint-1/`)
+- `npm run test:client` — run frontend React component tests (`client/tests/sprint-1/`)
+- `npm run test:all` — run both backend and frontend test suites
+- `npm run test:e2e` (`npx playwright test`) — run Playwright end-to-end browser verification journeys (`e2e/sprint-1/`)
 - `npm run db:generate` — generate Prisma Client
 - `npm run db:migrate` — create/apply the local development migration
 - `npm run db:seed` — seed development fixtures
 - `npm run db:setup` — migrate and seed a local database
 
-Feature routes and workflows are introduced in subsequent sprint issues.
+## Sprint 1 Documentation (`v0.1.0-sprint1`)
+
+- [Sprint 1 Engineering Specification](docs/sprints/sprint-1/specification.md)
+- [Sprint 1 REST API Specification](docs/sprints/sprint-1/api-spec.md)
+- [Sprint 1 UI Specification (Blue Matcha Design System)](docs/sprints/sprint-1/ui-spec.md)
+- [Sprint 1 Test Plan, Traceability Matrix & Release Evidence](docs/sprints/sprint-1/tests.md)

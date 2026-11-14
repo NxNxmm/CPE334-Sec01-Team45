@@ -1,10 +1,10 @@
 # Sprint 1 Test Plan & Traceability Matrix
 **EquipFlow Hardware Inventory & Borrowing Verification**
 
-**Document ID:** `TEST-PLAN-SPRINT-01`  
-**Version:** `1.0.0`  
-**Status:** Draft  
-**Target Release:** `v0.1.0-sprint1`  
+**Document ID:** `TEST-PLAN-SPRINT-01`
+**Version:** `1.1.0`
+**Status:** Approved (Verified `v0.1.0-sprint1`)
+**Target Release:** `v0.1.0-sprint1`
 
 ---
 
@@ -65,17 +65,17 @@ This document establishes the comprehensive Test Driven Development (TDD) and Te
 | **UI-01-06** | UI | AC-REQ-03 | Request button disabled when borrower active quota = 3 | Quota badge displays "3/3"; request buttons disable with "Limit Reached" | `client/tests/sprint-1/Catalog.test.tsx` | **Passed** |
 | **UI-01-07** | UI | AC-REQ-05 | My Requests view displays pending requests & loans | Tables render active loans and pending requests with 7-day due date | `client/tests/sprint-1/MyRequests.test.tsx` | **Passed** |
 | **UI-01-08** | UI | AC-CHK-01 | Custodian triage queue table rendering | Renders pending requests table with borrower name and "Approve & Checkout" button | `client/tests/sprint-1/CustodianDesk.test.tsx` | **Passed** |
-| **E2E-01-01** | E2E | AC-REQ-01, AC-CHK-02 | Full Domain Journey: Borrower request to Custodian checkout | Borrower logs in, requests item -> Custodian logs in, checks out item -> DB verified | `e2e/sprint-1/domain-journey.spec.ts` | Planned |
-| **E2E-01-02** | E2E | AC-REQ-02, AC-CHK-05 | Meaningful Business Rule Rejection: Duplicate booking/checkout | Attempt to request or checkout occupied asset displays human-readable error banner | `e2e/sprint-1/rejection-rules.spec.ts` | Planned |
-| **E2E-01-03** | E2E | AC-AUTH-06, AC-AUTH-07 | Access Control: Borrower forbidden from Custodian desk | Direct navigation to `/custodian/desk` as Borrower redirects with forbidden notice | `e2e/sprint-1/access-control.spec.ts` | Planned |
-| **E2E-01-04** | E2E | §4.1, §4.2 | Viewport layout audit (375px/768px/1280px) and focus rings | Real browser verification of zero horizontal scroll and visible keyboard focus rings | `e2e/sprint-1/layout-a11y.spec.ts` | Planned |
+| **E2E-01-01** | E2E | AC-REQ-01, AC-CHK-02 | Full Domain Journey: Borrower request to Custodian checkout | Borrower logs in, requests item -> Custodian logs in, checks out item -> DB verified | `e2e/sprint-1/domain-journey.spec.ts` | **Passed** |
+| **E2E-01-02** | E2E | AC-REQ-02, AC-CHK-05 | Meaningful Business Rule Rejection: Duplicate booking/checkout | Attempt to request or checkout occupied asset displays human-readable error banner | `e2e/sprint-1/rejection-rules.spec.ts` | **Passed** |
+| **E2E-01-03** | E2E | AC-AUTH-06, AC-AUTH-07 | Access Control: Borrower forbidden from Custodian desk | Direct navigation to `/custodian/desk` as Borrower redirects with forbidden notice | `e2e/sprint-1/access-control.spec.ts` | **Passed** |
+| **E2E-01-04** | E2E | §4.1, §4.2 | Viewport layout audit (375px/768px/1280px) and focus rings | Real browser verification of zero horizontal scroll and visible keyboard focus rings | `e2e/sprint-1/layout-a11y.spec.ts` | **Passed** |
 
 ---
 
 ## 3. Test Execution Guidelines
 
-> **Seed-State Contract & Deterministic Re-Runnability:**  
-> The backend test runner utilizes an automated `globalSetup` script (`server/tests/global-setup.ts`) that executes `npx prisma migrate reset --force --skip-seed` followed by `npx prisma db seed` before running tests. This guarantees that all tests run against a pristine database with known sample credentials (`borrower@cpe.kmutt.ac.th`, `custodian@cpe.kmutt.ac.th` / `Password123!`) and deterministic seed assets.
+> **Seed-State Contract & Deterministic Re-Runnability:**
+> Both the backend test runner (`server/vitest.config.ts` via `server/tests/global-setup.ts`) and the Playwright E2E runner (`playwright.config.ts` via `e2e/sprint-1/global-setup.ts` and `global-teardown.ts`) provision a fresh, disposable SQLite test database (`DATABASE_URL="file:./test.db"`), apply migrations (`npx prisma migrate deploy`), and seed baseline fixtures (`npx prisma db seed`) before running tests, then remove `prisma/test.db` upon teardown. Mutating E2E scenarios create dedicated test users and equipment items and clean up strictly their own created IDs.
 
 ### 3.1 Backend Integration Tests
 Execute all backend API and domain rule tests:
@@ -101,4 +101,55 @@ Execute the entire test battery across backend, frontend, and E2E:
 npm test
 npm run test:e2e
 ```
+
+---
+
+## 4. Sprint 1 Verification Walkthrough & Release Evidence (Part F)
+
+* **Verified PR Commit SHA:** `63e04268449d9ca07b1b8c5a60a044c47854363d` (`63e0426`)
+* **Isolated Test Database:** `DATABASE_URL="file:./test.db"` (disposable SQLite instance initialized in `globalSetup` and removed in `globalTeardown`)
+* **Target Release Tag:** `v0.1.0-sprint1`
+* **Full Command Execution Log:** [`docs/sprints/sprint-1/evidence/test-execution-log.txt`](./evidence/test-execution-log.txt)
+
+### 4.1 Automated Test Suite Summary
+
+| Test Suite Layer | Runner & Framework | Files | Passed / Total | Duration | Status |
+|---|---|:---:|:---:|:---:|:---:|
+| **Backend API & Domain Integration** | Vitest + Supertest + Prisma (`test.db`) | 4 | **29 / 29** | 14.95s | **Passed** |
+| **Frontend UI Components** | Vitest + React Testing Library | 4 | **15 / 15** | 2.54s | **Passed** |
+| **End-to-End Browser Journeys** | Playwright (Chromium on `test.db`) | 4 | **4 / 4** | 22.70s | **Passed** |
+| **Total Sprint 1 Verification** | — | **12** | **48 / 48** | **40.19s** | **100% Passed** |
+
+### 4.2 Scenario Walkthrough & Captured UI Evidence
+
+#### Scenario 1 — Normal End-to-End Domain Journey (`E2E-01-01`)
+* **Test File:** `e2e/sprint-1/domain-journey.spec.ts`
+* **Fixture Isolation:** Creates a dedicated test borrower (`E2E Journey Student`) and dedicated equipment item (`CPE-E2E-001` — `Tektronix TBS1052C Digital Oscilloscope`) on the disposable `test.db` database, and cleans up only its own created loan, request, item, and user IDs in `afterAll`.
+* **Walkthrough Steps Verified:**
+  1. **Login View (`01-login-view.png`):** Renders the Blue Matcha login card with local development quick-fill credentials.
+  2. **Borrower Catalog (`02-borrower-catalog.png`):** Dedicated borrower signs in, views real-time availability badges, and observes `📋 My Active Items: 0 / 3`.
+  3. **Borrow Request Modal (`03-borrower-request-modal.png`):** Borrower selects `CPE-E2E-001` (`Tektronix TBS1052C Digital Oscilloscope`), enters academic purpose notes (`"E2E Sprint 1 Lab Signal Verification"`), and confirms the reservation.
+  4. **Borrower Personal History (`04-borrower-my-requests.png`):** Navigating to `My Requests` displays the updated quota progress bar (`1 / 3`) and lists `CPE-E2E-001` under `Pending Requests`.
+  5. **Custodian Triage Queue (`05-custodian-triage-queue.png`):** `CPE Lab Custodian` (`STAFF-001`) signs in and inspects the pending reservation for `CPE-E2E-001` with the borrower's student ID badge.
+  6. **Custodian Checkout Confirmation Modal (`06-custodian-checkout-modal.png`):** Displays verified borrower and asset identity, the Frozen Aqua 7-day due date callout (`7 days from checkout`), and staff handover notes.
+  7. **Active Loans Monitor & Database Verification (`07-custodian-active-loans.png`):** Confirming physical checkout transitions `CPE-E2E-001` to `CHECKED_OUT`, marks the request `APPROVED`, creates an `ACTIVE` loan attributed to `custodian@cpe.kmutt.ac.th`, and persists `dueDate = checkedOutAt + 7 days` in SQLite.
+
+#### Scenario 2 — Business Rule Rejection (`E2E-01-02`)
+* **Test File:** `e2e/sprint-1/rejection-rules.spec.ts`
+* **Fixture Isolation:** Performs read-only assertions on seeded non-available items (`CPE-RPI-002` and `CPE-LOG-001`) and creates dedicated test borrowers plus a dedicated test asset (`CPE-E2E-REJ` — `Keysight E36311A DC Power Supply`) to test reservation conflicts without mutating any shared seeded items.
+* **Walkthrough Steps Verified:**
+  1. Occupied equipment cards (`CPE-RPI-002` in `CHECKED_OUT` and `CPE-LOG-001` in `MAINTENANCE`) render disabled request buttons with explicit non-color status text (`Checked Out`, `Maintenance`).
+  2. Competing reservation attempts on the dedicated `CPE-E2E-REJ` asset return HTTP `400`/`409` and surface a high-contrast crimson error alert banner inside the modal (`08-rejection-conflict-banner.png`).
+
+#### Scenario 3 — Access Control & Role Segregation (`E2E-01-03`)
+* **Test File:** `e2e/sprint-1/access-control.spec.ts`
+* **Walkthrough Steps Verified:**
+  1. Unauthenticated calls to `/api/v1/custodian/requests` are rejected with HTTP `401 Unauthorized` (`UNAUTHENTICATED`).
+  2. Authenticated Borrowers attempting to navigate to `/custodian/desk` or invoke `/api/v1/custodian/requests` and `/api/v1/custodian/checkouts` are strictly blocked from the Custodian UI (`09-access-control-borrower-boundary.png`) and rejected by the backend role guard with HTTP `403 Forbidden` (`FORBIDDEN_ROLE`).
+
+#### Scenario 4 — Responsive Viewports & Keyboard Accessibility (`E2E-01-04`)
+* **Test File:** `e2e/sprint-1/layout-a11y.spec.ts`
+* **Walkthrough Steps Verified:**
+  1. **Zero Horizontal Scroll Audit:** Verified `document.documentElement.scrollWidth <= window.innerWidth` across Mobile `375px` (`10-viewport-mobile-375px.png`), Tablet `768px` (`10-viewport-tablet-768px.png`), and Desktop `1280px` (`10-viewport-desktop-1280px.png`).
+  2. **Keyboard Focus Indicator (`11-keyboard-focus-ring.png`):** Verified keyboard `Tab` navigation renders a `2px solid #31465A` (Deep Ocean, `rgb(49, 70, 90)`) focus ring meeting WCAG 2.1 SC 1.4.11 ($\ge 3:1$ non-text contrast).
 

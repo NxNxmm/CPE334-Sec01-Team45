@@ -2,10 +2,10 @@
 
 **EquipFlow Blue Matcha Design System**
 
-**Document ID:** `UI-SPEC-SPRINT-01`  
-**Version:** `1.2.1`  
-**Status:** Draft  
-**Target Release:** `v0.1.0-sprint1`  
+**Document ID:** `UI-SPEC-SPRINT-01`
+**Version:** `1.2.1`
+**Status:** Approved (Verified `v0.1.0-sprint1`)
+**Target Release:** `v0.1.0-sprint1`
 
 ---
 

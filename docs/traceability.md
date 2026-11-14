@@ -58,7 +58,7 @@ This matrix maps all Functional Requirements (FR), Business Rules (BR), and Non-
 
 | Sprint | Included Feature IDs | Covered Functional Requirements | Covered Business Rules | Covered Non-Functional Requirements | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Sprint 1** | `F-01`, `F-02` (read), `F-03`, `F-04` (core) | `FR-01`, `FR-02`, `FR-03`, `FR-04`, `FR-05`, `FR-06`, `FR-09`, `FR-10`, `FR-11`, `FR-13`, `FR-14` | `BR-01`, `BR-02`, `BR-03`, `BR-04`, `BR-05` (save), `BR-08` | `NFR-01`, `NFR-02`, `NFR-03`, `NFR-05` | **In Progress (Deliverable 1 Target: 15 Nov)** |
+| **Sprint 1** | `F-01`, `F-02` (read), `F-03`, `F-04` (core) | `FR-01`, `FR-02`, `FR-03`, `FR-04`, `FR-05`, `FR-06`, `FR-09`, `FR-10`, `FR-11`, `FR-13`, `FR-14` | `BR-01`, `BR-02`, `BR-03`, `BR-04`, `BR-05` (save), `BR-08` | `NFR-01`, `NFR-02`, `NFR-03`, `NFR-05` | **Completed & Verified (`v0.1.0-sprint1`)** |
 | **Sprint 2** | `F-02` (manage), `F-04` (walk-in), `F-05`, `F-06`, `F-07`, `F-03` (cancel), `F-04` (reject) | `FR-07`, `FR-08`, `FR-12`, `FR-15`, `FR-16`, `FR-17`, `FR-18` | `BR-05` (overdue), `BR-06`, `BR-07` | `NFR-04`, `NFR-06` | Planned (Deliverable 2 Target: 29 Nov) |
 | **Sprint 3** | `F-08`, Integration & Hardening | Cross-feature hardening & analytics | Full system compliance | Full system regression & stability | Planned (Final Delivery Target: 13 Dec) |
 
