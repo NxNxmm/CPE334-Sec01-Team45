@@ -106,7 +106,7 @@ npm run test:e2e
 
 ## 4. Sprint 1 Verification Walkthrough & Release Evidence (Part F)
 
-* **Verified PR Commit SHA:** `f18fa8185f2643c096b8993c13359e1ed33aaccf` (`f18fa81`)
+* **Verified PR Commit SHA:** `63e04268449d9ca07b1b8c5a60a044c47854363d` (`63e0426`)
 * **Isolated Test Database:** `DATABASE_URL="file:./test.db"` (disposable SQLite instance initialized in `globalSetup` and removed in `globalTeardown`)
 * **Target Release Tag:** `v0.1.0-sprint1`
 * **Full Command Execution Log:** [`docs/sprints/sprint-1/evidence/test-execution-log.txt`](./evidence/test-execution-log.txt)
