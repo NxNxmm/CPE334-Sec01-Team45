@@ -74,8 +74,8 @@ This document establishes the comprehensive Test Driven Development (TDD) and Te
 
 ## 3. Test Execution Guidelines
 
-> **Seed-State Contract & Deterministic Re-Runnability:**  
-> The backend test runner utilizes an automated `globalSetup` script (`server/tests/global-setup.ts`) that executes `npx prisma migrate reset --force --skip-seed` followed by `npx prisma db seed` before running tests. This guarantees that all tests run against a pristine database with known sample credentials (`borrower@cpe.kmutt.ac.th`, `custodian@cpe.kmutt.ac.th` / `Password123!`) and deterministic seed assets.
+> **Seed-State Contract & Deterministic Re-Runnability:**
+> Both the backend test runner (`server/vitest.config.ts` via `server/tests/global-setup.ts`) and the Playwright E2E runner (`playwright.config.ts` via `e2e/sprint-1/global-setup.ts` and `global-teardown.ts`) provision a fresh, disposable SQLite test database (`DATABASE_URL="file:./test.db"`), apply migrations (`npx prisma migrate deploy`), and seed baseline fixtures (`npx prisma db seed`) before running tests, then remove `prisma/test.db` upon teardown. Mutating E2E scenarios create dedicated test users and equipment items and clean up strictly their own created IDs.
 
 ### 3.1 Backend Integration Tests
 Execute all backend API and domain rule tests:
@@ -106,7 +106,8 @@ npm run test:e2e
 
 ## 4. Sprint 1 Verification Walkthrough & Release Evidence (Part F)
 
-* **Verified Staging Commit SHA:** `f098b1ee9abff324869e29cff2190b2ac86cb6ba` (`f098b1e`)
+* **Verified PR Commit SHA:** `f18fa8185f2643c096b8993c13359e1ed33aaccf` (`f18fa81`)
+* **Isolated Test Database:** `DATABASE_URL="file:./test.db"` (disposable SQLite instance initialized in `globalSetup` and removed in `globalTeardown`)
 * **Target Release Tag:** `v0.1.0-sprint1`
 * **Full Command Execution Log:** [`docs/sprints/sprint-1/evidence/test-execution-log.txt`](./evidence/test-execution-log.txt)
 
@@ -114,29 +115,31 @@ npm run test:e2e
 
 | Test Suite Layer | Runner & Framework | Files | Passed / Total | Duration | Status |
 |---|---|:---:|:---:|:---:|:---:|
-| **Backend API & Domain Integration** | Vitest + Supertest + Prisma SQLite | 4 | **29 / 29** | 3.06s | **Passed** |
-| **Frontend UI Components** | Vitest + React Testing Library | 4 | **15 / 15** | 2.74s | **Passed** |
-| **End-to-End Browser Journeys** | Playwright (Chromium) | 4 | **4 / 4** | 8.10s | **Passed** |
-| **Total Sprint 1 Verification** | — | **12** | **48 / 48** | **13.90s** | **100% Passed** |
+| **Backend API & Domain Integration** | Vitest + Supertest + Prisma (`test.db`) | 4 | **29 / 29** | 14.95s | **Passed** |
+| **Frontend UI Components** | Vitest + React Testing Library | 4 | **15 / 15** | 2.54s | **Passed** |
+| **End-to-End Browser Journeys** | Playwright (Chromium on `test.db`) | 4 | **4 / 4** | 22.70s | **Passed** |
+| **Total Sprint 1 Verification** | — | **12** | **48 / 48** | **40.19s** | **100% Passed** |
 
 ### 4.2 Scenario Walkthrough & Captured UI Evidence
 
 #### Scenario 1 — Normal End-to-End Domain Journey (`E2E-01-01`)
 * **Test File:** `e2e/sprint-1/domain-journey.spec.ts`
+* **Fixture Isolation:** Creates a dedicated test borrower (`E2E Journey Student`) and dedicated equipment item (`CPE-E2E-001` — `Tektronix TBS1052C Digital Oscilloscope`) on the disposable `test.db` database, and cleans up only its own created loan, request, item, and user IDs in `afterAll`.
 * **Walkthrough Steps Verified:**
   1. **Login View (`01-login-view.png`):** Renders the Blue Matcha login card with local development quick-fill credentials.
-  2. **Borrower Catalog (`02-borrower-catalog.png`):** `Student Borrower One` (`67070501001`) signs in, views real-time availability badges, and observes `📋 My Active Items: 0 / 3`.
-  3. **Borrow Request Modal (`03-borrower-request-modal.png`):** Borrower selects `CPE-OSC-001` (`Rigol DS1054Z Digital Oscilloscope`), enters academic purpose notes (`"E2E Sprint 1 Lab Signal Verification"`), and confirms the reservation.
-  4. **Borrower Personal History (`04-borrower-my-requests.png`):** Navigating to `My Requests` displays the updated quota progress bar (`1 / 3`) and lists `CPE-OSC-001` under `Pending Requests`.
-  5. **Custodian Triage Queue (`05-custodian-triage-queue.png`):** `CPE Lab Custodian` (`STAFF-001`) signs in and inspects the pending reservation for `CPE-OSC-001` with student ID badge `67070501001`.
+  2. **Borrower Catalog (`02-borrower-catalog.png`):** Dedicated borrower signs in, views real-time availability badges, and observes `📋 My Active Items: 0 / 3`.
+  3. **Borrow Request Modal (`03-borrower-request-modal.png`):** Borrower selects `CPE-E2E-001` (`Tektronix TBS1052C Digital Oscilloscope`), enters academic purpose notes (`"E2E Sprint 1 Lab Signal Verification"`), and confirms the reservation.
+  4. **Borrower Personal History (`04-borrower-my-requests.png`):** Navigating to `My Requests` displays the updated quota progress bar (`1 / 3`) and lists `CPE-E2E-001` under `Pending Requests`.
+  5. **Custodian Triage Queue (`05-custodian-triage-queue.png`):** `CPE Lab Custodian` (`STAFF-001`) signs in and inspects the pending reservation for `CPE-E2E-001` with the borrower's student ID badge.
   6. **Custodian Checkout Confirmation Modal (`06-custodian-checkout-modal.png`):** Displays verified borrower and asset identity, the Frozen Aqua 7-day due date callout (`7 days from checkout`), and staff handover notes.
-  7. **Active Loans Monitor & Database Verification (`07-custodian-active-loans.png`):** Confirming physical checkout transitions `CPE-OSC-001` to `CHECKED_OUT`, marks the request `APPROVED`, creates an `ACTIVE` loan attributed to `custodian@cpe.kmutt.ac.th`, and persists `dueDate = checkedOutAt + 7 days` in SQLite.
+  7. **Active Loans Monitor & Database Verification (`07-custodian-active-loans.png`):** Confirming physical checkout transitions `CPE-E2E-001` to `CHECKED_OUT`, marks the request `APPROVED`, creates an `ACTIVE` loan attributed to `custodian@cpe.kmutt.ac.th`, and persists `dueDate = checkedOutAt + 7 days` in SQLite.
 
 #### Scenario 2 — Business Rule Rejection (`E2E-01-02`)
 * **Test File:** `e2e/sprint-1/rejection-rules.spec.ts`
+* **Fixture Isolation:** Performs read-only assertions on seeded non-available items (`CPE-RPI-002` and `CPE-LOG-001`) and creates dedicated test borrowers plus a dedicated test asset (`CPE-E2E-REJ` — `Keysight E36311A DC Power Supply`) to test reservation conflicts without mutating any shared seeded items.
 * **Walkthrough Steps Verified:**
   1. Occupied equipment cards (`CPE-RPI-002` in `CHECKED_OUT` and `CPE-LOG-001` in `MAINTENANCE`) render disabled request buttons with explicit non-color status text (`Checked Out`, `Maintenance`).
-  2. Competing reservation or checkout attempts on an already-reserved asset return HTTP `400`/`409` and surface a high-contrast crimson error alert banner inside the modal (`08-rejection-conflict-banner.png`).
+  2. Competing reservation attempts on the dedicated `CPE-E2E-REJ` asset return HTTP `400`/`409` and surface a high-contrast crimson error alert banner inside the modal (`08-rejection-conflict-banner.png`).
 
 #### Scenario 3 — Access Control & Role Segregation (`E2E-01-03`)
 * **Test File:** `e2e/sprint-1/access-control.spec.ts`

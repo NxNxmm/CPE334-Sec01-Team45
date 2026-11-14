@@ -17,6 +17,7 @@
     "test:client": "npm run test --workspace client",
     "test:e2e": "playwright test",
     "test:all": "npm run test --workspace server && npm run test --workspace client",
+    "test:record-log": "node e2e/sprint-1/record-log.mjs",
     "db:validate": "prisma validate",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev --name init",
