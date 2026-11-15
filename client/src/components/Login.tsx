@@ -48,13 +48,23 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     }
   };
 
+  const viteEnv = (
+    import.meta as {
+      env?: { PROD?: boolean; VITE_SHOW_DEMO_CREDENTIALS?: string; VITE_DEMO_PASSWORD?: string };
+    }
+  ).env;
+  const showLocalCredentials =
+    !viteEnv?.PROD && viteEnv?.VITE_SHOW_DEMO_CREDENTIALS !== 'false';
+  const localDemoPassword = viteEnv?.PROD ? '' : (viteEnv?.VITE_DEMO_PASSWORD ?? 'Password123!');
+
   const handleQuickFill = (role: 'borrower' | 'custodian') => {
+    if (!showLocalCredentials) return;
     if (role === 'borrower') {
       setEmail('borrower@cpe.kmutt.ac.th');
-      setPassword('Password123!');
+      setPassword(localDemoPassword);
     } else {
       setEmail('custodian@cpe.kmutt.ac.th');
-      setPassword('Password123!');
+      setPassword(localDemoPassword);
     }
     setErrorMessage(null);
   };
@@ -130,37 +140,39 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           </button>
         </form>
 
-        <div className="credentials-callout mt-4">
-          <div className="d-flex justify-content-between align-items-center mb-2">
-            <span className="fw-semibold small">🔑 Local Development Credentials</span>
-          </div>
-          <div className="small mb-2" style={{ lineHeight: '1.6' }}>
-            <div>
-              <strong>Borrower:</strong> <code>borrower@cpe.kmutt.ac.th</code> / <code>Password123!</code>
+        {showLocalCredentials && (
+          <div className="credentials-callout mt-4">
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <span className="fw-semibold small">🔑 Local Development Credentials</span>
             </div>
-            <div>
-              <strong>Custodian:</strong> <code>custodian@cpe.kmutt.ac.th</code> / <code>Password123!</code>
+            <div className="small mb-2" style={{ lineHeight: '1.6' }}>
+              <div>
+                <strong>Borrower:</strong> <code>borrower@cpe.kmutt.ac.th</code> / <code>Password123!</code>
+              </div>
+              <div>
+                <strong>Custodian:</strong> <code>custodian@cpe.kmutt.ac.th</code> / <code>Password123!</code>
+              </div>
+            </div>
+            <div className="d-flex gap-2">
+              <button
+                type="button"
+                className="btn btn-sm btn-quickfill"
+                onClick={() => handleQuickFill('borrower')}
+                disabled={isLoading}
+              >
+                Fill Borrower
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-quickfill"
+                onClick={() => handleQuickFill('custodian')}
+                disabled={isLoading}
+              >
+                Fill Custodian
+              </button>
             </div>
           </div>
-          <div className="d-flex gap-2">
-            <button
-              type="button"
-              className="btn btn-sm btn-quickfill"
-              onClick={() => handleQuickFill('borrower')}
-              disabled={isLoading}
-            >
-              Fill Borrower
-            </button>
-            <button
-              type="button"
-              className="btn btn-sm btn-quickfill"
-              onClick={() => handleQuickFill('custodian')}
-              disabled={isLoading}
-            >
-              Fill Custodian
-            </button>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
