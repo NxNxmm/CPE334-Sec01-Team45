@@ -6,7 +6,12 @@ import path from 'node:path';
 
 const prisma = new PrismaClient({
   datasources: {
-    db: { url: process.env.DATABASE_URL ?? 'file:./test.db' },
+    db: {
+      url:
+        process.env.TEST_DATABASE_URL ??
+        process.env.DATABASE_URL ??
+        'postgresql://appuser:localdevpassword@localhost:5432/equipflow_test?schema=public',
+    },
   },
 });
 const screenshotDir = path.resolve(process.cwd(), 'docs/sprints/sprint-1/evidence/screenshots');

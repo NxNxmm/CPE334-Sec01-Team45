@@ -4,11 +4,32 @@ import { PrismaClient, ItemCondition, ItemStatus, LoanStatus, RequestStatus, Rol
 
 dotenv.config();
 
-const prisma = new PrismaClient();
-const localPassword = 'Password123!';
+const databaseUrl =
+  process.env.DATABASE_URL && !process.env.DATABASE_URL.startsWith('file:')
+    ? process.env.DATABASE_URL
+    : 'postgresql://appuser:localdevpassword@localhost:5432/equipflow?schema=public';
+
+const prisma = new PrismaClient({
+  datasources: {
+    db: { url: databaseUrl },
+  },
+});
+const defaultDevPassword = 'Password123!';
+
+function resolveSeedPassword(): string {
+  const configured = process.env.DEMO_USER_PASSWORD?.trim();
+  if (configured) {
+    return configured;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('DEMO_USER_PASSWORD must be set when running database seed in production.');
+  }
+  return defaultDevPassword;
+}
 
 async function main() {
-  const passwordHash = await bcrypt.hash(localPassword, 12);
+  const seedPassword = resolveSeedPassword();
+  const passwordHash = await bcrypt.hash(seedPassword, 12);
 
   const borrower1 = await prisma.user.upsert({
     where: { email: 'borrower@cpe.kmutt.ac.th' },
