@@ -55,7 +55,7 @@ describe('Lab 5 - Cloud-Readiness Probes, Test DB Reset Guard & Seed Reproducibi
     });
   });
 
-  describe('Test Database Reset Guard (missing & shared target rejection)', () => {
+  describe('Test Database Reset Guard (missing, shared, schema-only & credential redaction)', () => {
     const originalTestUrl = process.env.TEST_DATABASE_URL;
     const originalAppUrl = process.env.DATABASE_URL;
     const originalCi = process.env.CI;
@@ -78,15 +78,15 @@ describe('Lab 5 - Cloud-Readiness Probes, Test DB Reset Guard & Seed Reproducibi
           DATABASE_URL: 'postgresql://appuser:localdevpassword@localhost:5432/equipflow?schema=public',
           TEST_DATABASE_URL: '',
         })
-      ).toThrow(/TEST_DATABASE_URL is required/i);
+      ).toThrow(/TEST_DATABASE_URL.*required/i);
 
       delete process.env.TEST_DATABASE_URL;
       process.env.CI = 'true';
       process.env.DATABASE_URL =
         'postgresql://appuser:localdevpassword@localhost:5432/equipflow?schema=public';
 
-      await expect(vitestGlobalSetup()).rejects.toThrow(/TEST_DATABASE_URL is required/i);
-      await expect(playwrightGlobalSetup()).rejects.toThrow(/TEST_DATABASE_URL is required/i);
+      await expect(vitestGlobalSetup()).rejects.toThrow(/TEST_DATABASE_URL.*required/i);
+      await expect(playwrightGlobalSetup()).rejects.toThrow(/TEST_DATABASE_URL.*required/i);
     });
 
     it('rejects shared target when TEST_DATABASE_URL matches application DATABASE_URL', async () => {
@@ -98,17 +98,44 @@ describe('Lab 5 - Cloud-Readiness Probes, Test DB Reset Guard & Seed Reproducibi
           DATABASE_URL: sharedUrl,
           TEST_DATABASE_URL: sharedUrl,
         })
-      ).toThrow(/points to the same target as application DATABASE_URL/i);
+      ).toThrow(/targets the same database as application DATABASE_URL/i);
 
       process.env.DATABASE_URL = sharedUrl;
       process.env.TEST_DATABASE_URL = sharedUrl;
 
       await expect(vitestGlobalSetup()).rejects.toThrow(
-        /points to the same target as application DATABASE_URL/i
+        /targets the same database as application DATABASE_URL/i
       );
       await expect(playwrightGlobalSetup()).rejects.toThrow(
-        /points to the same target as application DATABASE_URL/i
+        /targets the same database as application DATABASE_URL/i
       );
+    });
+
+    it('rejects application database even when schema differs and ends in _test', () => {
+      expect(() =>
+        resolveAndValidateTestDatabaseUrl({
+          DATABASE_URL: 'postgresql://appuser:localdevpassword@localhost:5432/equipflow?schema=public',
+          TEST_DATABASE_URL:
+            'postgresql://appuser:localdevpassword@localhost:5432/equipflow?schema=integration_test',
+        })
+      ).toThrow(/targets the same database as application DATABASE_URL/i);
+
+      expect(() =>
+        resolveAndValidateTestDatabaseUrl({
+          DATABASE_URL:
+            'postgresql://appuser:localdevpassword@localhost:5432/equipflow_test?schema=public',
+          TEST_DATABASE_URL:
+            'postgresql://appuser:localdevpassword@localhost:5432/equipflow_test?schema=isolated_test',
+        })
+      ).toThrow(/targets the same database as application DATABASE_URL/i);
+
+      expect(() =>
+        resolveAndValidateTestDatabaseUrl({
+          DATABASE_URL: 'postgresql://appuser:localdevpassword@localhost:5432/other_db?schema=public',
+          TEST_DATABASE_URL:
+            'postgresql://appuser:localdevpassword@localhost:5432/equipflow?schema=custom_test',
+        })
+      ).toThrow(/database name must end with _test or -test/i);
     });
 
     it('rejects non-test database names that do not end with _test or -test', () => {
@@ -118,7 +145,31 @@ describe('Lab 5 - Cloud-Readiness Probes, Test DB Reset Guard & Seed Reproducibi
           TEST_DATABASE_URL:
             'postgresql://appuser:localdevpassword@localhost:5432/equipflow?schema=public',
         })
-      ).toThrow(/must target a dedicated \*_test database/i);
+      ).toThrow(/database name must end with _test or -test/i);
+    });
+
+    it('never leaks credentials or connection strings in validation error messages', () => {
+      const dummyUser = 'db_admin_user';
+      const dummySecret = 'DummySuperSecretPass!98765';
+      const malformedWithCreds = `postgresql://${dummyUser}:${dummySecret}@localhost:notaport/equipflow_test`;
+      const badProtocolWithCreds = `mysql://${dummyUser}:${dummySecret}@localhost:5432/equipflow_test`;
+
+      for (const badUrl of [malformedWithCreds, badProtocolWithCreds]) {
+        let caughtError: Error | undefined;
+        try {
+          resolveAndValidateTestDatabaseUrl({
+            TEST_DATABASE_URL: badUrl,
+          });
+        } catch (err) {
+          caughtError = err as Error;
+        }
+
+        expect(caughtError).toBeDefined();
+        expect(caughtError!.message).toMatch(/TEST_DATABASE_URL/);
+        expect(caughtError!.message).not.toContain(dummySecret);
+        expect(caughtError!.message).not.toContain(dummyUser);
+        expect(caughtError!.message).not.toContain(badUrl);
+      }
     });
 
     it('accepts a dedicated *_test database target distinct from DATABASE_URL', () => {

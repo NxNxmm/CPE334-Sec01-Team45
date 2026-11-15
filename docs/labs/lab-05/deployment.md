@@ -74,7 +74,7 @@ npm run build
 
 ### 3.4 Run Full Automated Regression Suites (Against PostgreSQL 16)
 ```bash
-# Backend API, concurrency, auth, /api/health + /api/ready probes, test DB guard & seed checks (38 tests)
+# Backend API, concurrency, auth, /api/health + /api/ready probes, test DB guard & seed checks (40 tests)
 npm test
 
 # Frontend UI component tests (15 tests)
@@ -109,13 +109,13 @@ Datasource "db": PostgreSQL database "equipflow_test", schema "public"
 Applying migration `20261112205548_init`
 Database reset successful
 Seeded 3 users and 6 equipment items.
- ✓ tests/sprint-1/health.api.test.ts (9 tests) 67ms
+ ✓ tests/sprint-1/health.api.test.ts (11 tests) 72ms
  ✓ tests/sprint-1/catalog.api.test.ts (4 tests) 634ms
  ✓ tests/sprint-1/checkout.api.test.ts (5 tests) 666ms
  ✓ tests/sprint-1/requests.api.test.ts (7 tests) 1070ms
  ✓ tests/sprint-1/auth.api.test.ts (13 tests) 2469ms
  Test Files  5 passed (5)
-      Tests  38 passed (38)
+      Tests  40 passed (40)
 
 $ npm run test:client
  ✓ tests/sprint-1/MyRequests.test.tsx (3 tests) 185ms
