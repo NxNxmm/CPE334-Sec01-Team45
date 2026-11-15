@@ -1,12 +1,11 @@
 import 'dotenv/config';
 import { defineConfig, devices } from '@playwright/test';
+import { resolveAndValidateTestDatabaseUrl } from './server/src/config/test-db.js';
 
-const testDatabaseUrl =
-  process.env.TEST_DATABASE_URL ??
-  (process.env.CI ? process.env.DATABASE_URL : undefined) ??
-  'postgresql://appuser:localdevpassword@localhost:5432/equipflow_test?schema=public';
+const validatedTestDbUrl = process.env.TEST_DATABASE_URL
+  ? resolveAndValidateTestDatabaseUrl(process.env)
+  : '';
 
-process.env.DATABASE_URL = testDatabaseUrl;
 process.env.JWT_SECRET = process.env.JWT_SECRET ?? 'equipflow-test-jwt-secret';
 
 export default defineConfig({
@@ -35,8 +34,8 @@ export default defineConfig({
     timeout: 60000,
     env: {
       ...process.env,
-      DATABASE_URL: testDatabaseUrl,
-      TEST_DATABASE_URL: testDatabaseUrl,
+      DATABASE_URL: validatedTestDbUrl,
+      TEST_DATABASE_URL: validatedTestDbUrl,
       JWT_SECRET: process.env.JWT_SECRET,
     },
   },

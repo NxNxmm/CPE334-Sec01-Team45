@@ -1,16 +1,16 @@
+import 'dotenv/config';
 import { test, expect } from '@playwright/test';
 import { PrismaClient, ItemCondition, ItemStatus, RequestStatus, LoanStatus, Role } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { resolveAndValidateTestDatabaseUrl } from '../../server/src/config/test-db.js';
+
 const prisma = new PrismaClient({
   datasources: {
     db: {
-      url:
-        process.env.TEST_DATABASE_URL ??
-        process.env.DATABASE_URL ??
-        'postgresql://appuser:localdevpassword@localhost:5432/equipflow_test?schema=public',
+      url: resolveAndValidateTestDatabaseUrl(process.env),
     },
   },
 });

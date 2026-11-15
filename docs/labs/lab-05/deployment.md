@@ -33,9 +33,9 @@ No secrets, passwords, or private keys are committed to the repository. Refer to
 | Variable Name | Required | Purpose | Local Development | GitHub Actions CI/CD | GCP Cloud Run / Cloud SQL |
 | :--- | :---: | :--- | :--- | :--- | :--- |
 | `DATABASE_URL` | Yes | Primary PostgreSQL 16 connection string for Prisma ORM | Local `.env` (untracked) | Ephemeral `postgres:16` service env | **GCP Secret Manager** (`DATABASE_URL`) |
-| `TEST_DATABASE_URL` | Test only | Isolated PostgreSQL 16 database URL for Vitest & Playwright suites | Local `.env` (`equipflow_test`) | CI service container (`equipflow_test`) | N/A (not used in production runtime) |
+| `TEST_DATABASE_URL` | Test only | Dedicated `*_test` PostgreSQL 16 database URL required before running destructive test resets (`server/src/config/test-db.ts`); never falls back to `DATABASE_URL` and rejects shared targets | Local `.env` (`equipflow_test`) | CI service container (`equipflow_test`) | N/A (not used in production runtime) |
 | `JWT_SECRET` | Yes | HMAC signing secret for JWT Bearer tokens (fails closed if omitted) | Local `.env` (untracked) | CI job env var | **GCP Secret Manager** (`JWT_SECRET`) |
-| `DEMO_USER_PASSWORD` | Prod seed | Password hashed by `prisma/seed.ts` for initial demo accounts | Optional (defaults to local dev password when `NODE_ENV != production`) | CI job env var | **GCP Secret Manager** (`DEMO_USER_PASSWORD`) |
+| `DEMO_USER_PASSWORD` | Prod seed | Password hashed by `prisma/seed.ts` for initial demo accounts in production; left empty (`""`) in `.env.example` so local dev, Login quick-fill, and test fixtures deterministically use the local fixture password | Optional (`""` uses local fixture password when `NODE_ENV != production`) | Optional (`""` in CI test seed) | **GCP Secret Manager** (`DEMO_USER_PASSWORD`) |
 | `PORT` | No | HTTP server listening port (defaults to `3000` locally) | `.env` (`3000`) | `8080` in container smoke test | Injected automatically by Cloud Run (`8080`) |
 | `HOST` | No | Network interface bind address (defaults to `0.0.0.0`) | `.env` (`0.0.0.0`) | `0.0.0.0` | `0.0.0.0` |
 | `NODE_ENV` | No | Runtime environment mode (`development`, `test`, `production`) | `development` | `test` / `production` | `production` |
@@ -74,7 +74,7 @@ npm run build
 
 ### 3.4 Run Full Automated Regression Suites (Against PostgreSQL 16)
 ```bash
-# Backend API, concurrency, auth, and /api/health + /api/ready probes (32 tests)
+# Backend API, concurrency, auth, /api/health + /api/ready probes, test DB guard & seed checks (38 tests)
 npm test
 
 # Frontend UI component tests (15 tests)
@@ -86,40 +86,49 @@ npx playwright test
 
 ### 3.5 Verified L5-1 Local Execution Evidence (PostgreSQL 16)
 ```text
+$ npm run db:migrate && npm run db:seed
+Datasource "db": PostgreSQL database "equipflow", schema "public"
+1 migration found in prisma/migrations
+All migrations have been successfully applied.
+Running seed command `node --import tsx prisma/seed.ts` ...
+Seeded 3 users and 6 equipment items.
+
 $ npm run build
-✔ Generated Prisma Client (v6.19.3) to .\node_modules\@prisma\client
+✔ Generated Prisma Client (v6.19.3) to .\node_modules\@prisma\client in 70ms
 vite v7.3.8 building client environment for production...
 ✓ 32 modules transformed.
 dist/index.html                   0.55 kB │ gzip:  0.33 kB
 dist/assets/index-ClGdsf-u.css  241.44 kB │ gzip: 32.88 kB
 dist/assets/index-D5tZKAj8.js   168.54 kB │ gzip: 52.44 kB
-✓ built in 730ms
+✓ built in 599ms
 > @equipflow/server@0.1.0 build
 > tsc -p tsconfig.json
 
 $ npm test
 Datasource "db": PostgreSQL database "equipflow_test", schema "public"
 Applying migration `20261112205548_init`
+Database reset successful
 Seeded 3 users and 6 equipment items.
- ✓ tests/sprint-1/health.api.test.ts (3 tests)
- ✓ tests/sprint-1/checkout.api.test.ts (5 tests)
- ✓ tests/sprint-1/catalog.api.test.ts (4 tests)
- ✓ tests/sprint-1/requests.api.test.ts (7 tests)
- ✓ tests/sprint-1/auth.api.test.ts (13 tests)
+ ✓ tests/sprint-1/health.api.test.ts (9 tests) 67ms
+ ✓ tests/sprint-1/catalog.api.test.ts (4 tests) 634ms
+ ✓ tests/sprint-1/checkout.api.test.ts (5 tests) 666ms
+ ✓ tests/sprint-1/requests.api.test.ts (7 tests) 1070ms
+ ✓ tests/sprint-1/auth.api.test.ts (13 tests) 2469ms
  Test Files  5 passed (5)
-      Tests  32 passed (32)
+      Tests  38 passed (38)
 
 $ npm run test:client
- ✓ tests/sprint-1/MyRequests.test.tsx (3 tests)
- ✓ tests/sprint-1/CustodianDesk.test.tsx (3 tests)
- ✓ tests/sprint-1/Catalog.test.tsx (6 tests)
- ✓ tests/sprint-1/Login.test.tsx (3 tests)
+ ✓ tests/sprint-1/MyRequests.test.tsx (3 tests) 185ms
+ ✓ tests/sprint-1/CustodianDesk.test.tsx (3 tests) 225ms
+ ✓ tests/sprint-1/Catalog.test.tsx (6 tests) 234ms
+ ✓ tests/sprint-1/Login.test.tsx (3 tests) 269ms
  Test Files  4 passed (4)
       Tests  15 passed (15)
 
 $ npx playwright test
 Datasource "db": PostgreSQL database "equipflow_test", schema "public"
 Applying migration `20261112205548_init`
+Database reset successful
 Seeded 3 users and 6 equipment items.
 Running 4 tests using 1 worker
   4 passed (14.9s)
