@@ -14,7 +14,7 @@ docker compose up --build -d
 docker compose ps
 ```
 
-Compose waits for PostgreSQL health, runs the one-shot `migrate` service (`prisma migrate deploy` followed by the deterministic development seed), then starts the app. The app runs as the unprivileged `node` user and listens on port 8080 inside the container. Override the host ports with `APP_PORT` or `POSTGRES_PORT` if needed.
+Compose waits for PostgreSQL health, runs the one-shot `migrate` service (`prisma migrate deploy` followed by the deterministic development seed), then starts the app. The app runs as the unprivileged `node` user and listens on port 8080 inside the container. Override the host ports with `APP_PORT` or `POSTGRES_PORT` if needed. If port 8080 is in use, run `APP_PORT=127.0.0.1:18080 docker compose up --build -d` and use `http://127.0.0.1:18080` for the checks below. The port inside the app container stays at 8080.
 
 ## Verify the container (C-03 evidence)
 
@@ -41,6 +41,10 @@ This keeps the local PostgreSQL volume. `docker compose down -v` deletes that da
 
 ## Verification status
 
-- `docker compose config -q` checks Compose syntax only; it does not build or start containers.
-- Container build, PostgreSQL migration/seed, readiness, non-root runtime, and browser sign-in are **pending Docker daemon access**. Record them as passed only after running the commands above and capturing results against the final commit SHA.
-- The restricted review environment ran the application build, Prisma schema validation, and all 15 client tests. Docker engine access was denied, so these checks do not verify the container workflow.
+Initial local run on 2026-11-16 (ICT) at `223cacb821cd3be83917ca10e96d12b973fd4264` using Docker Desktop 28.4.0 on Apple Silicon and Compose v2.39.4-desktop.1:
+
+- Docker Compose built the `app` and `migrate` images and created the named PostgreSQL data volume. The PostgreSQL 16 container reached healthy status.
+- Prisma applied migration `20261112205548_init`, and the seed created 3 users and 6 equipment items.
+- The app could not bind host port 8080 because Adminer was already listening there. The HTTP responses from that port were from Adminer. EquipFlow health, readiness, runtime UID, and sign-in still need to be checked on a free host port.
+
+The restricted review environment ran the application build, Prisma schema validation, and all 15 client tests outside Docker.
