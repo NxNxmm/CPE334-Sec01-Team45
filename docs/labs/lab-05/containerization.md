@@ -45,6 +45,12 @@ Initial local run on 2026-11-16 (ICT) at `223cacb821cd3be83917ca10e96d12b973fd42
 
 - Docker Compose built the `app` and `migrate` images and created the named PostgreSQL data volume. The PostgreSQL 16 container reached healthy status.
 - Prisma applied migration `20261112205548_init`, and the seed created 3 users and 6 equipment items.
-- The app could not bind host port 8080 because Adminer was already listening there. The HTTP responses from that port were from Adminer. EquipFlow health, readiness, runtime UID, and sign-in still need to be checked on a free host port.
+- The app could n- The initial run could not bind host port 8080 because Adminer was already listening there. The HTTP responses from that port were from Adminer.
 
+Follow-up on 2026-11-17 (ICT) using the same container build at host port 18080:
+
+- `/api/health` returned `status: ok` for `equipflow-api`.
+- `/api/ready` returned `status: ready` and `db: connected` for `equipflow-api`.
+- The Sign In page loaded in Arc. Signing in as the seeded borrower opened the Department Equipment Catalog.
+- The production image declares `USER node` and Compose does not override it. A numeric runtime UID was not captured in this evidence; use `docker compose exec app id -u` to reproduce that check.
 The restricted review environment ran the application build, Prisma schema validation, and all 15 client tests outside Docker.
