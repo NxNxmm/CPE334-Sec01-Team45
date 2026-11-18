@@ -1,6 +1,7 @@
 name: CI - Test & Docker
 
 on:
+  workflow_call:
   pull_request:
     branches:
       - main
@@ -77,6 +78,9 @@ jobs:
 
       - name: Build production Docker image (default runtime stage)
         run: docker build -t equipflow:ci-${{ github.sha }} .
+
+      - name: Verify deployment script migration gate
+        run: bash deploy/tests/test-release-stub.sh
 
       - name: Verify production container runtime and health probes
         run: |
