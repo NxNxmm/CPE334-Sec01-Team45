@@ -1,0 +1,132 @@
+name: CI - Test & Docker
+
+on:
+  pull_request:
+    branches:
+      - main
+      - sprint-1-staging
+  push:
+    branches:
+      - sprint-1-staging
+  workflow_dispatch:
+
+concurrency:
+  group: ci-docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-docker:
+    name: test-and-docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: appuser
+          POSTGRES_PASSWORD: localdevpassword
+          POSTGRES_DB: equipflow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U appuser -d equipflow"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DATABASE_URL: postgresql://appuser:localdevpassword@127.0.0.1:5432/equipflow?schema=public
+      TEST_DATABASE_URL: postgresql://appuser:localdevpassword@127.0.0.1:5432/equipflow_test?schema=public
+      JWT_SECRET: ci-ephemeral-jwt-secret-not-for-production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Clean install dependencies
+        run: npm ci
+
+      - name: Validate Prisma schema and generate client
+        run: |
+          npm run db:validate
+          npm run db:generate
+
+      - name: Create isolated PostgreSQL 16 test database
+        run: PGPASSWORD=localdevpassword psql -h 127.0.0.1 -U appuser -d equipflow -c "CREATE DATABASE equipflow_test;"
+
+      - name: Apply PostgreSQL migrations and seed application database
+        run: |
+          npm run db:migrate
+          npm run db:seed
+
+      - name: Build client and server workspaces
+        run: npm run build
+
+      - name: Run server integration and domain tests
+        run: npm test
+
+      - name: Run client UI component tests
+        run: npm run test:client
+
+      - name: Build production Docker image (default runtime stage)
+        run: docker build -t equipflow:ci-${{ github.sha }} .
+
+      - name: Verify production container runtime and health probes
+        run: |
+          docker run -d --name equipflow-ci-smoke --network host \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e JWT_SECRET="$JWT_SECRET" \
+            -e PORT=8080 \
+            equipflow:ci-${{ github.sha }}
+
+          UID_NUM=$(docker exec equipflow-ci-smoke id -u)
+          echo "Container runtime UID: $UID_NUM"
+          test "$UID_NUM" -ne 0
+
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8080/api/ready >/dev/null 2>&1; then
+              break
+            fi
+            if [ "$i" -eq 20 ]; then
+              docker logs equipflow-ci-smoke || true
+              exit 1
+            fi
+            sleep 1
+          done
+
+          curl -fsS http://127.0.0.1:8080/api/health
+          echo ""
+          curl -fsS http://127.0.0.1:8080/api/ready
+          echo ""
+
+          SPA_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/)
+          echo "SPA / status: $SPA_STATUS"
+          test "$SPA_STATUS" = "200"
+
+          LOGIN_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" \
+            -H "Content-Type: application/json" \
+            -d '{"email":"borrower@cpe.kmutt.ac.th","password":"Password123!"}' \
+            http://127.0.0.1:8080/api/v1/auth/login)
+          echo "Seeded borrower login HTTP status: $LOGIN_STATUS"
+          test "$LOGIN_STATUS" = "200"
+
+      - name: Cleanup smoke test container
+        if: always()
+        run: docker rm -f equipflow-ci-smoke >/dev/null 2>&1 || true
+
+      - name: Publish CI summary (C-01)
+        if: success()
+        run: |
+          {
+            echo "## CI Verification Summary (\`test-and-docker\`)"
+            echo "- **Tested Commit SHA:** \`${{ github.sha }}\`"
+            echo "- **Event:** \`${{ github.event_name }}\` (\`${{ github.ref_name }}\`)"
+            echo "- **Checks Passed:** \`npm ci\`, \`db:validate\`, \`db:migrate\`, \`db:seed\`, \`npm run build\`, \`npm test\`, \`npm run test:client\`, \`docker build\`, non-root UID check, \`/api/health\`, \`/api/ready\`, and borrower sign-in."
+          } >> "$GITHUB_STEP_SUMMARY"

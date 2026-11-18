@@ -136,7 +136,23 @@ Running 4 tests using 1 worker
 
 ---
 
-## 4. Containerization, CI/CD & Cloud Run Release Procedure
+## 4. Continuous Integration Quality Gate (`L5-3`, `R-05`, `C-01`)
 
-*(Sections for Docker Compose `L5-2`, GitHub Actions CI `L5-3`, GCP First Deploy `L5-4`, WIF & Merge Gate `L5-5`, and Automated Main Release `L5-6` will be expanded as each Lab 5 issue merges into `sprint-1-staging`.)*
+The PR CI pipeline is defined in [`.github/workflows/ci-docker.yml`](../../../.github/workflows/ci-docker.yml) with the stable required check name **`test-and-docker`**.
+
+- **Triggers:** `pull_request` targeting `main` and `sprint-1-staging`, `push` to `sprint-1-staging`, and `workflow_dispatch`.
+- **PostgreSQL 16 Service Container:** Runs `postgres:16-alpine` with `pg_isready` health checks and creates a dedicated `equipflow_test` database separate from `equipflow` (`DATABASE_URL` vs `TEST_DATABASE_URL`).
+- **Verification Steps:**
+  1. Clean dependency installation (`npm ci`) on Node.js 22.
+  2. Schema validation and Prisma Client generation (`npm run db:validate`, `npm run db:generate`).
+  3. Production database migration and seed (`npm run db:migrate`, `npm run db:seed`).
+  4. Workspace build (`npm run build` for `client` and `server`).
+  5. Automated backend integration tests (`npm test`) and frontend component tests (`npm run test:client`).
+  6. Production Docker build (`docker build -t equipflow:ci-<sha> .`) and container smoke verification (`id -u != 0`, `/api/health`, `/api/ready`, `/`, and borrower login HTTP `200`).
+
+---
+
+## 5. Cloud Run Provisioning & Release Procedure (`L5-4`–`L5-6`)
+
+*(Sections for GCP First Deploy `L5-4`, WIF & Merge Gate `L5-5`, and Automated Main Release `L5-6` will be expanded as each Lab 5 issue merges into `sprint-1-staging`.)*
 
