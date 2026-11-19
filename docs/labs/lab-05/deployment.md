@@ -47,6 +47,7 @@ No secrets, passwords, or private keys are committed to the repository. Refer to
 ## 3. Reproducible Local PostgreSQL 16 Setup & Verification (`L5-1`)
 
 ### 3.1 Start Local PostgreSQL 16 Instance
+
 ```bash
 docker run --name equipflow-pg-local \
   -e POSTGRES_USER=appuser \
@@ -58,11 +59,13 @@ docker exec equipflow-pg-local psql -U appuser -d equipflow -c "CREATE DATABASE 
 ```
 
 ### 3.2 Configure Local Environment
+
 ```bash
 cp .env.example .env
 ```
 
 ### 3.3 Install, Validate, Migrate, Seed, and Build
+
 ```bash
 npm ci
 npm run db:validate
@@ -73,6 +76,7 @@ npm run build
 ```
 
 ### 3.4 Run Full Automated Regression Suites (Against PostgreSQL 16)
+
 ```bash
 # Backend API, concurrency, auth, /api/health + /api/ready probes, test DB guard & seed checks (40 tests)
 npm test
@@ -85,6 +89,7 @@ npx playwright test
 ```
 
 ### 3.5 Verified L5-1 Local Execution Evidence (PostgreSQL 16)
+
 ```text
 $ npm run db:migrate && npm run db:seed
 Datasource "db": PostgreSQL database "equipflow", schema "public"
@@ -154,6 +159,113 @@ The PR CI pipeline is defined in [`.github/workflows/ci-docker.yml`](../../../.g
 
 ## 5. Cloud Run Provisioning & Release Procedure (`L5-4`–`L5-6`)
 
+### 5.0 First-Time GCP Provisioning & Deployment (`L5-4`, `R-03`, `C-04`)
+
+[`deploy/deploy.sh`](../../../deploy/deploy.sh) idempotently provisions the team's GCP infrastructure in project `cpe334-team45`, builds both Docker targets (`runtime` and `db-tools`) for `linux/amd64` via **Google Cloud Build** ([`deploy/cloudbuild.yaml`](../../../deploy/cloudbuild.yaml), `BUILD_METHOD=cloudbuild` by default to avoid Cloud Shell local Docker daemon egress restrictions, or `BUILD_METHOD=docker` when overriding locally), resolves immutable Artifact Registry SHA-256 digests, runs Prisma migrations + initial seed via a Cloud Run Job, deploys the `runtime` image to Cloud Run, and verifies the live HTTPS URL with [`deploy/smoke_test.py`](../../../deploy/smoke_test.py).
+
+#### Agreed GCP Resource Naming (`cpe334-team45`)
+
+These defaults match [`deploy/deploy.sh`](../../../deploy/deploy.sh), [`deploy/release.sh`](../../../deploy/release.sh), and the `demo` GitHub Environment variables in `L5-5`:
+
+| Resource / Setting | Default Value (`L5-4` / `L5-5` / `L5-6`) | Purpose |
+| :--- | :--- | :--- |
+| `GCP_PROJECT_ID` | `cpe334-team45` | Team GCP Project ID |
+| `GCP_REGION` | `asia-southeast1` | Primary region for Cloud Run, Cloud SQL, and Artifact Registry |
+| `AR_REPOSITORY` | `equipflow` | Artifact Registry Docker repository |
+| `AR_IMAGE` | `app` | Image name (`:<sha>` for runtime, `:<sha>-db-tools` for Prisma CLI) |
+| `SQL_INSTANCE` | `equipflow-pg` | Cloud SQL PostgreSQL 16 instance (`db-f1-micro`, 10 GB) |
+| `CLOUD_RUN_SERVICE` | `equipflow` | Public Cloud Run HTTPS service (`PORT=8080`, non-root `node`) |
+| `CLOUD_RUN_MIGRATION_JOB` | `equipflow-migrate` | Cloud Run Job configured with `npm run db:migrate` |
+| `RUNTIME_SA` | `equipflow-runner@cpe334-team45.iam.gserviceaccount.com` | Least-privilege runtime SA (`roles/cloudsql.client` + Secret Manager accessors) |
+
+#### Running First-Time Deploy from Google Cloud Shell (`NxNxmm`)
+
+Run from a clean checkout of `feat/lab5-first-deploy` (or `sprint-1-staging` after merge) in **Google Cloud Shell**, where `gcloud`, `docker`, `python3`, and `openssl` are preinstalled:
+
+```bash
+git clone https://github.com/NxNxmm/CPE334-Sec01-Team45.git
+cd CPE334-Sec01-Team45
+git checkout feat/lab5-first-deploy
+
+# Prompt for DEMO_USER_PASSWORD without saving it to shell history or Git
+read -s -p "DEMO_USER_PASSWORD: " DEMO_USER_PASSWORD; echo
+export DEMO_USER_PASSWORD
+
+bash deploy/deploy.sh
+unset DEMO_USER_PASSWORD
+```
+
+#### `C-04` Live Cloud Run Verification Checklist
+
+After `deploy/deploy.sh` prints `SERVICE_URL` and `LATEST_REVISION` and passes `deploy/smoke_test.py`:
+
+1. Confirm `GET ${SERVICE_URL}/api/health` returns `{"status":"ok","service":"equipflow-api"}` and `GET ${SERVICE_URL}/api/ready` returns `{"status":"ready","service":"equipflow-api","db":"connected"}`.
+2. Open `${SERVICE_URL}` in a browser (keeping the `https://*.run.app` address bar visible in all `C-04` screenshots):
+   - Sign in as the seeded Borrower (`borrower@cpe.kmutt.ac.th`) and submit a borrow request for an `AVAILABLE` item.
+   - Sign out, sign in as the seeded Custodian (`custodian@cpe.kmutt.ac.th`), open `/custodian/desk`, and complete checkout (creating an active 7-day loan).
+   - Verify a rule rejection or access restriction (e.g., attempting to request the occupied item, or confirming HTTP `403 FORBIDDEN_ROLE` when a Borrower requests Custodian endpoints).
+3. Record the Cloud Run service URL and active revision:
+
+   ```bash
+   gcloud run services describe equipflow --project=cpe334-team45 --region=asia-southeast1 \
+     --format='yaml(status.url,status.latestReadyRevisionName,status.traffic)'
+   ```
+
+#### Post-Grading Cost Cleanup (`R-12`) & Temporary Idle Pause
+>
+> [!IMPORTANT]
+> Cloud Run (`--min-instances=0`) scales to zero with \$0 idle compute cost. Only the Cloud SQL instance (`equipflow-pg`, `db-f1-micro`) accrues compute charges while running. Keep both Cloud Run and Cloud SQL active (`ALWAYS`) throughout teammate review, CI/CD release testing, and Lab 5 grading (`R-12`).
+>
+> **Temporary pause/resume while idle before submission (Episode 9):**
+> ```bash
+> # Pause Cloud SQL compute temporarily while idle
+> gcloud sql instances patch equipflow-pg --activation-policy=NEVER --project=cpe334-team45
+>
+> # Resume Cloud SQL before testing, CI/CD runs, or grading
+> gcloud sql instances patch equipflow-pg --activation-policy=ALWAYS --project=cpe334-team45
+> ```
+>
+> **Permanent teardown only AFTER Lab 5 grading concludes:**
+> ```bash
+> bash deploy/teardown.sh --confirm-teardown
+> ```
+
+#### Verified L5-4 / C-04 First-Deploy Evidence (2026-11-19 ICT)
+- **Deployed Source SHA:** `ac9b8dd564caa300473612f205b8e72ffbe57ed0`
+- **Cloud Build Run:** `e4015d37-479f-48f8-b3b8-d28d1c41e4a5` (`STATUS: SUCCESS`, duration `3M5S`)
+- **Runtime Image Digest:** `asia-southeast1-docker.pkg.dev/cpe334-team45/equipflow/app@sha256:ddc3b8d1de0d7feb4f53e4d6f1880b8646116edc676c75ffdeb01fed501f0e83`
+- **Migration (`db-tools`) Image Digest:** `asia-southeast1-docker.pkg.dev/cpe334-team45/equipflow/app@sha256:1a6d7d9a46052c51549dacc411d6ecf5800d0bc330fcb72aa2d3ef59ad69babf`
+- **Migration & Seed Executions:** `equipflow-migrate-7bw58` (`npm run db:migrate`, `1 / 1 complete`) and `equipflow-migrate-dntv9` (`npm run db:seed`, `1 / 1 complete`)
+- **Live Cloud Run URL & Active Revision:** `https://equipflow-ddqo5fpv2a-as.a.run.app` (`equipflow-00001-t44`, `100%` traffic)
+- **Live Domain Workflow (`C-04`):** Verified on `https://equipflow-ddqo5fpv2a-as.a.run.app` (`equipflow-00001-t44`, `100%` traffic) using the seeded demo accounts: a `BORROWER` submitted a borrow request for `CPE-OSC-001`, and a `CUSTODIAN` completed physical checkout into an active 7-day loan.
+- **Browser Role Boundary (`C-04`):** Navigating directly to `https://equipflow-ddqo5fpv2a-as.a.run.app/custodian/desk` while signed in as `BORROWER` kept the user restricted to the Borrower portal without exposing Custodian operations.
+
+```text
+$ gcloud run services describe equipflow --project=cpe334-team45 --region=asia-southeast1 \
+    --format='yaml(status.url,status.latestReadyRevisionName,status.traffic)'
+status:
+  latestReadyRevisionName: equipflow-00001-t44
+  traffic:
+  - latestRevision: true
+    percent: 100
+    revisionName: equipflow-00001-t44
+  url: https://equipflow-ddqo5fpv2a-as.a.run.app
+
+$ curl -sS https://equipflow-ddqo5fpv2a-as.a.run.app/api/health
+{"status":"ok","service":"equipflow-api"}
+
+$ curl -sS https://equipflow-ddqo5fpv2a-as.a.run.app/api/ready
+{"status":"ready","service":"equipflow-api","db":"connected"}
+
+$ curl -sS -w "\nHTTP %{http_code}\n" https://equipflow-ddqo5fpv2a-as.a.run.app/api/v1/custodian/requests
+{"error":{"code":"UNAUTHENTICATED","message":"Authentication token is missing or malformed"}}
+HTTP 401
+
+$ curl -sS -w "\nHTTP %{http_code}\n" -H "Authorization: Bearer <BORROWER_JWT_REDACTED>" https://equipflow-ddqo5fpv2a-as.a.run.app/api/v1/custodian/requests
+{"error":{"code":"FORBIDDEN_ROLE","message":"Access denied for role BORROWER"}}
+HTTP 403
+```
+
 ### 5.1 Automated main deployment (`L5-6`)
 
 `.github/workflows/deploy.yml` is designed to deploy only after a push to `main`, which in this project should be a reviewed release PR from `sprint-1-staging`. Its `test` job reuses `ci-docker.yml`; the deploy job requires that job to pass before it authenticates through Workload Identity Federation, builds and pushes the `runtime` and `db-tools` targets tagged with the 40-character source SHA, resolves both immutable image digests, runs the migration job with the `db-tools` image, updates the service with the production `runtime` image, and performs read-only HTTP smoke checks. The distinct image targets are required because `npm prune --omit=dev` removes the Prisma CLI from `runtime`, while the migrations require Prisma CLI. A migration failure stops the workflow before service rollout. The optional manual rollback input must be a full SHA already present in Artifact Registry; rollback skips migrations and reuses that runtime image.
@@ -175,5 +287,8 @@ The Cloud Run service and migration job must already reference the intended Secr
 
 The workflow smoke checks are read-only and use this application's routes: `/api/health`, `/api/ready`, and `/`. The workflow summary records the source SHA, image tag/digest, service URL, rollback mode, and successful smoke step. The Actions run, exact Artifact Registry digest, and deployed Cloud Run revision/traffic still need to be captured after a real release for C-06.
 
-**Current verification boundary:** this workflow and runbook are being prepared while `L5-4` and `L5-5` remain open. The current browser account can open the team project, but Cloud Run Console reports that the Cloud Run Admin API is not enabled and that this account cannot enable it. No Cloud Run deployment or live smoke-test result is claimed until the project owner completes the prerequisite setup and a reviewed release reaches `main`.
-
+**Current verification boundary (`L5-4` completed; `L5-5`–`L5-7` pending):**
+- **Completed (`L5-4` / `C-04`):** Required GCP APIs (`run.googleapis.com`, `sqladmin.googleapis.com`, `artifactregistry.googleapis.com`, `cloudbuild.googleapis.com`, `secretmanager.googleapis.com`, `iam.googleapis.com`, and `iamcredentials.googleapis.com`) are enabled on project `cpe334-team45`. Cloud SQL (`equipflow-pg`), Artifact Registry (`equipflow`), Secret Manager secrets, migration job (`equipflow-migrate`), and Cloud Run service (`equipflow`) are provisioned and verified live at `https://equipflow-ddqo5fpv2a-as.a.run.app` on revision `equipflow-00001-t44` (`100%` traffic) deployed from source SHA `ac9b8dd564caa300473612f205b8e72ffbe57ed0` (covering `/api/health`, `/api/ready`, `401`/`403` role guards, browser role boundary, and Borrower request for `CPE-OSC-001` -> Custodian checkout).
+- **Pending (`L5-5` `#25` / `C-02`):** Configure Workload Identity Federation (`WIF_PROVIDER`, `WIF_SERVICE_ACCOUNT`), populate the `demo` GitHub Environment variables, enforce `protect-main` required status checks, and capture failing-PR merge-gate evidence.
+- **Pending (`L5-6` `#26` / `C-06`):** Trigger `.github/workflows/deploy.yml` from a reviewed Release PR merged into `main` and record the automated Actions run, released image digest, and Cloud Run revision/traffic.
+- **Pending (`L5-7` `#27` / `C-05`):** Verify synthetic domain-record persistence across Cloud Run restart and redeploy.

@@ -79,8 +79,11 @@ jobs:
       - name: Build production Docker image (default runtime stage)
         run: docker build -t equipflow:ci-${{ github.sha }} .
 
-      - name: Verify deployment script migration gate
-        run: bash deploy/tests/test-release-stub.sh
+      - name: Verify deployment scripts and migration gate
+        run: |
+          bash -n deploy/deploy.sh deploy/release.sh deploy/teardown.sh
+          bash deploy/tests/test-release-stub.sh
+          bash deploy/tests/test-deploy-stub.sh
 
       - name: Verify production container runtime and health probes
         run: |
