@@ -154,5 +154,26 @@ The PR CI pipeline is defined in [`.github/workflows/ci-docker.yml`](../../../.g
 
 ## 5. Cloud Run Provisioning & Release Procedure (`L5-4`–`L5-6`)
 
-*(Sections for GCP First Deploy `L5-4`, WIF & Merge Gate `L5-5`, and Automated Main Release `L5-6` will be expanded as each Lab 5 issue merges into `sprint-1-staging`.)*
+### 5.1 Automated main deployment (`L5-6`)
+
+`.github/workflows/deploy.yml` is designed to deploy only after a push to `main`, which in this project should be a reviewed release PR from `sprint-1-staging`. Its `test` job reuses `ci-docker.yml`; the deploy job requires that job to pass before it authenticates through Workload Identity Federation, builds and pushes the `runtime` and `db-tools` targets tagged with the 40-character source SHA, resolves both immutable image digests, runs the migration job with the `db-tools` image, updates the service with the production `runtime` image, and performs read-only HTTP smoke checks. The distinct image targets are required because `npm prune --omit=dev` removes the Prisma CLI from `runtime`, while the migrations require Prisma CLI. A migration failure stops the workflow before service rollout. The optional manual rollback input must be a full SHA already present in Artifact Registry; rollback skips migrations and reuses that runtime image.
+
+The `demo` GitHub Environment must be configured by the project owner/team before enabling a release. Configure these **variables** there (values are project-specific and must match the resources created for `cpe334-team45`):
+
+| Variable | Purpose |
+| :--- | :--- |
+| `GCP_PROJECT_ID` | GCP project ID |
+| `GCP_REGION` | Region containing Cloud Run, Cloud SQL, and Artifact Registry |
+| `WIF_PROVIDER` | Full Workload Identity Provider resource name |
+| `WIF_SERVICE_ACCOUNT` | Dedicated GitHub deploy service-account email |
+| `AR_REPOSITORY` | Artifact Registry Docker repository name |
+| `AR_IMAGE` | Container image name in that repository |
+| `CLOUD_RUN_SERVICE` | Existing Cloud Run service name |
+| `CLOUD_RUN_MIGRATION_JOB` | Existing Cloud Run Job name configured for `npm run db:migrate` |
+
+The Cloud Run service and migration job must already reference the intended Secret Manager values and Cloud SQL instance from `L5-4`; the deploy workflow updates images only and does not create or change IAM, billing, databases, or secret values. Do not put credentials in workflow files or GitHub variables.
+
+The workflow smoke checks are read-only and use this application's routes: `/api/health`, `/api/ready`, and `/`. The workflow summary records the source SHA, image tag/digest, service URL, rollback mode, and successful smoke step. The Actions run, exact Artifact Registry digest, and deployed Cloud Run revision/traffic still need to be captured after a real release for C-06.
+
+**Current verification boundary:** this workflow and runbook are being prepared while `L5-4` and `L5-5` remain open. The current browser account can open the team project, but Cloud Run Console reports that the Cloud Run Admin API is not enabled and that this account cannot enable it. No Cloud Run deployment or live smoke-test result is claimed until the project owner completes the prerequisite setup and a reviewed release reaches `main`.
 
