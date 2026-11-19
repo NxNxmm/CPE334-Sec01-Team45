@@ -237,6 +237,7 @@ After `deploy/deploy.sh` prints `SERVICE_URL` and `LATEST_REVISION` and passes `
 - **Migration (`db-tools`) Image Digest:** `asia-southeast1-docker.pkg.dev/cpe334-team45/equipflow/app@sha256:1a6d7d9a46052c51549dacc411d6ecf5800d0bc330fcb72aa2d3ef59ad69babf`
 - **Migration & Seed Executions:** `equipflow-migrate-7bw58` (`npm run db:migrate`, `1 / 1 complete`) and `equipflow-migrate-dntv9` (`npm run db:seed`, `1 / 1 complete`)
 - **Live Cloud Run URL & Active Revision:** `https://equipflow-ddqo5fpv2a-as.a.run.app` (`equipflow-00001-t44`, `100%` traffic)
+- **Live Domain Workflow (`C-04`):** Verified on `https://equipflow-ddqo5fpv2a-as.a.run.app` (`equipflow-00001-t44`, `100%` traffic) using the seeded demo accounts: a `BORROWER` submitted a borrow request for `CPE-OSC-001`, and a `CUSTODIAN` completed physical checkout into an active 7-day loan.
 - **Browser Role Boundary (`C-04`):** Navigating directly to `https://equipflow-ddqo5fpv2a-as.a.run.app/custodian/desk` while signed in as `BORROWER` kept the user restricted to the Borrower portal without exposing Custodian operations.
 
 ```text
@@ -286,4 +287,8 @@ The Cloud Run service and migration job must already reference the intended Secr
 
 The workflow smoke checks are read-only and use this application's routes: `/api/health`, `/api/ready`, and `/`. The workflow summary records the source SHA, image tag/digest, service URL, rollback mode, and successful smoke step. The Actions run, exact Artifact Registry digest, and deployed Cloud Run revision/traffic still need to be captured after a real release for C-06.
 
-**Current verification boundary:** this workflow and runbook are being prepared while `L5-4` and `L5-5` remain open. The current browser account can open the team project, but Cloud Run Console reports that the Cloud Run Admin API is not enabled and that this account cannot enable it. No Cloud Run deployment or live smoke-test result is claimed until the project owner completes the prerequisite setup and a reviewed release reaches `main`.
+**Current verification boundary (`L5-4` completed; `L5-5`–`L5-7` pending):**
+- **Completed (`L5-4` / `C-04`):** Required GCP APIs (`run.googleapis.com`, `sqladmin.googleapis.com`, `artifactregistry.googleapis.com`, `cloudbuild.googleapis.com`, `secretmanager.googleapis.com`, `iam.googleapis.com`, and `iamcredentials.googleapis.com`) are enabled on project `cpe334-team45`. Cloud SQL (`equipflow-pg`), Artifact Registry (`equipflow`), Secret Manager secrets, migration job (`equipflow-migrate`), and Cloud Run service (`equipflow`) are provisioned and verified live at `https://equipflow-ddqo5fpv2a-as.a.run.app` on revision `equipflow-00001-t44` (`100%` traffic) deployed from source SHA `ac9b8dd564caa300473612f205b8e72ffbe57ed0` (covering `/api/health`, `/api/ready`, `401`/`403` role guards, browser role boundary, and Borrower request for `CPE-OSC-001` -> Custodian checkout).
+- **Pending (`L5-5` `#25` / `C-02`):** Configure Workload Identity Federation (`WIF_PROVIDER`, `WIF_SERVICE_ACCOUNT`), populate the `demo` GitHub Environment variables, enforce `protect-main` required status checks, and capture failing-PR merge-gate evidence.
+- **Pending (`L5-6` `#26` / `C-06`):** Trigger `.github/workflows/deploy.yml` from a reviewed Release PR merged into `main` and record the automated Actions run, released image digest, and Cloud Run revision/traffic.
+- **Pending (`L5-7` `#27` / `C-05`):** Verify synthetic domain-record persistence across Cloud Run restart and redeploy.
