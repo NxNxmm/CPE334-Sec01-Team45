@@ -154,6 +154,62 @@ The PR CI pipeline is defined in [`.github/workflows/ci-docker.yml`](../../../.g
 
 ## 5. Cloud Run Provisioning & Release Procedure (`L5-4`–`L5-6`)
 
+### 5.0 First-Time GCP Provisioning & Deployment (`L5-4`, `R-03`, `C-04`)
+
+[`deploy/deploy.sh`](../../../deploy/deploy.sh) idempotently provisions the team's GCP infrastructure in project `cpe334-team45`, builds both Docker targets for `linux/amd64`, resolves immutable Artifact Registry SHA-256 digests, runs Prisma migrations + initial seed via a Cloud Run Job, deploys the `runtime` image to Cloud Run, and verifies the live HTTPS URL with [`deploy/smoke_test.py`](../../../deploy/smoke_test.py).
+
+#### Agreed GCP Resource Naming (`cpe334-team45`)
+These defaults match [`deploy/deploy.sh`](../../../deploy/deploy.sh), [`deploy/release.sh`](../../../deploy/release.sh), and the `demo` GitHub Environment variables in `L5-5`:
+
+| Resource / Setting | Default Value (`L5-4` / `L5-5` / `L5-6`) | Purpose |
+| :--- | :--- | :--- |
+| `GCP_PROJECT_ID` | `cpe334-team45` | Team GCP Project ID |
+| `GCP_REGION` | `asia-southeast1` | Primary region for Cloud Run, Cloud SQL, and Artifact Registry |
+| `AR_REPOSITORY` | `equipflow` | Artifact Registry Docker repository |
+| `AR_IMAGE` | `app` | Image name (`:<sha>` for runtime, `:<sha>-db-tools` for Prisma CLI) |
+| `SQL_INSTANCE` | `equipflow-pg` | Cloud SQL PostgreSQL 16 instance (`db-f1-micro`, 10 GB) |
+| `CLOUD_RUN_SERVICE` | `equipflow` | Public Cloud Run HTTPS service (`PORT=8080`, non-root `node`) |
+| `CLOUD_RUN_MIGRATION_JOB` | `equipflow-migrate` | Cloud Run Job configured with `npm run db:migrate` |
+| `RUNTIME_SA` | `equipflow-runner@cpe334-team45.iam.gserviceaccount.com` | Least-privilege runtime SA (`roles/cloudsql.client` + Secret Manager accessors) |
+
+#### Running First-Time Deploy from Google Cloud Shell (`NxNxmm`)
+Run from a clean checkout of `feat/lab5-first-deploy` (or `sprint-1-staging` after merge) in **Google Cloud Shell**, where `gcloud`, `docker`, `python3`, and `openssl` are preinstalled:
+
+```bash
+git clone https://github.com/NxNxmm/CPE334-Sec01-Team45.git
+cd CPE334-Sec01-Team45
+git checkout feat/lab5-first-deploy
+
+# Prompt for DEMO_USER_PASSWORD without saving it to shell history or Git
+read -s -p "DEMO_USER_PASSWORD: " DEMO_USER_PASSWORD; echo
+export DEMO_USER_PASSWORD
+
+bash deploy/deploy.sh
+unset DEMO_USER_PASSWORD
+```
+
+#### `C-04` Live Cloud Run Verification Checklist
+After `deploy/deploy.sh` prints `SERVICE_URL` and `LATEST_REVISION` and passes `deploy/smoke_test.py`:
+1. Confirm `GET ${SERVICE_URL}/api/health` returns `{"status":"ok","service":"equipflow-api"}` and `GET ${SERVICE_URL}/api/ready` returns `{"status":"ready","service":"equipflow-api","db":"connected"}`.
+2. Open `${SERVICE_URL}` in a browser (keeping the `https://*.run.app` address bar visible in all `C-04` screenshots):
+   - Sign in as the seeded Borrower (`borrower@cpe.kmutt.ac.th`) and submit a borrow request for an `AVAILABLE` item.
+   - Sign out, sign in as the seeded Custodian (`custodian@cpe.kmutt.ac.th`), open `/custodian/desk`, and complete checkout (creating an active 7-day loan).
+   - Verify a rule rejection or access restriction (e.g., attempting to request the occupied item, or confirming HTTP `403 FORBIDDEN_ROLE` when a Borrower requests Custodian endpoints).
+3. Record the Cloud Run service URL and active revision:
+   ```bash
+   gcloud run services describe equipflow --project=cpe334-team45 --region=asia-southeast1 \
+     --format='yaml(status.url,status.latestReadyRevisionName,status.traffic)'
+   ```
+
+#### Post-Grading Cost Cleanup (`R-12`)
+> [!IMPORTANT]
+> Keep the Cloud Run service and Cloud SQL instance running until Lab 5 grading concludes. Only after grading is complete, run [`deploy/teardown.sh`](../../../deploy/teardown.sh):
+> ```bash
+> bash deploy/teardown.sh --confirm-teardown
+> ```
+
+**Current verification boundary (`L5-4`):** `deploy/deploy.sh`, `deploy/teardown.sh`, and `deploy/tests/test-deploy-stub.sh` are validated via shell syntax checks and offline `gcloud`/`docker`/`python3` stub tests. Live Cloud SQL provisioning, Cloud Run deployment, and `C-04` URL-visible browser captures will be recorded after executing `bash deploy/deploy.sh` as project owner on `cpe334-team45`.
+
 ### 5.1 Automated main deployment (`L5-6`)
 
 `.github/workflows/deploy.yml` is designed to deploy only after a push to `main`, which in this project should be a reviewed release PR from `sprint-1-staging`. Its `test` job reuses `ci-docker.yml`; the deploy job requires that job to pass before it authenticates through Workload Identity Federation, builds and pushes the `runtime` and `db-tools` targets tagged with the 40-character source SHA, resolves both immutable image digests, runs the migration job with the `db-tools` image, updates the service with the production `runtime` image, and performs read-only HTTP smoke checks. The distinct image targets are required because `npm prune --omit=dev` removes the Prisma CLI from `runtime`, while the migrations require Prisma CLI. A migration failure stops the workflow before service rollout. The optional manual rollback input must be a full SHA already present in Artifact Registry; rollback skips migrations and reuses that runtime image.
