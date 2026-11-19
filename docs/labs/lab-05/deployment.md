@@ -266,7 +266,40 @@ $ curl -sS -w "\nHTTP %{http_code}\n" -H "Authorization: Bearer <BORROWER_JWT_RE
 HTTP 403
 ```
 
-### 5.1 Automated main deployment (`L5-6`)
+### 5.1 Keyless Workload Identity Federation, GitHub Environment & Merge Gate (`L5-5`, `R-06`, `C-02`)
+
+[`deploy/setup-wif.sh`](../../../deploy/setup-wif.sh) establishes keyless authentication from GitHub Actions to Google Cloud Platform without generating or storing any service-account JSON keys (`R-12`).
+
+1. **Provisioning the Deployer Identity & OIDC Federation:**
+   Run in Google Cloud Shell as project owner on `cpe334-team45`:
+   ```bash
+   bash deploy/setup-wif.sh
+   ```
+   This script creates:
+   - Service Account `equipflow-deployer@cpe334-team45.iam.gserviceaccount.com` with least-privilege roles:
+     - `roles/artifactregistry.writer` on repository `equipflow` (`asia-southeast1`)
+     - `roles/run.developer` on project `cpe334-team45`
+     - `roles/iam.serviceAccountUser` on runtime SA `equipflow-runner@cpe334-team45.iam.gserviceaccount.com`
+   - Workload Identity Pool `github-pool` and OIDC Provider `github-provider` (`https://token.actions.githubusercontent.com`) restricted strictly to `assertion.repository == 'NxNxmm/CPE334-Sec01-Team45'`.
+   - Binding `roles/iam.workloadIdentityUser` on `equipflow-deployer@cpe334-team45.iam.gserviceaccount.com` for the repository principal set.
+
+2. **`demo` GitHub Environment Variables (`Settings -> Environments -> demo`):**
+   | Variable | Value (`cpe334-team45`) |
+   | :--- | :--- |
+   | `GCP_PROJECT_ID` | `cpe334-team45` |
+   | `GCP_REGION` | `asia-southeast1` |
+   | `WIF_PROVIDER` | `projects/906022478800/locations/global/workloadIdentityPools/github-pool/providers/github-provider` |
+   | `WIF_SERVICE_ACCOUNT` | `equipflow-deployer@cpe334-team45.iam.gserviceaccount.com` |
+   | `AR_REPOSITORY` | `equipflow` |
+   | `AR_IMAGE` | `app` |
+   | `CLOUD_RUN_SERVICE` | `equipflow` |
+   | `CLOUD_RUN_MIGRATION_JOB` | `equipflow-migrate` |
+
+3. **`protect-main` Branch Ruleset & `C-02` Quality Gate Proof (`R-06`):**
+   - Configured GitHub branch ruleset **`protect-main`** on `main`: block force pushes, require a pull request with `1` approval (dismiss stale approvals on new commits), and require status check **`test-and-docker`** to pass before merging.
+   - To verify `C-02`, open a temporary PR from `test/prove-gate` targeting `main` containing one intentionally failing test, wait for `test-and-docker` to fail and confirm GitHub blocks merging, capture the PR and failed Actions run evidence, then close the temporary PR without merging and delete `test/prove-gate`.
+
+### 5.2 Automated main deployment (`L5-6`)
 
 `.github/workflows/deploy.yml` is designed to deploy only after a push to `main`, which in this project should be a reviewed release PR from `sprint-1-staging`. Its `test` job reuses `ci-docker.yml`; the deploy job requires that job to pass before it authenticates through Workload Identity Federation, builds and pushes the `runtime` and `db-tools` targets tagged with the 40-character source SHA, resolves both immutable image digests, runs the migration job with the `db-tools` image, updates the service with the production `runtime` image, and performs read-only HTTP smoke checks. The distinct image targets are required because `npm prune --omit=dev` removes the Prisma CLI from `runtime`, while the migrations require Prisma CLI. A migration failure stops the workflow before service rollout. The optional manual rollback input must be a full SHA already present in Artifact Registry; rollback skips migrations and reuses that runtime image.
 
@@ -289,6 +322,6 @@ The workflow smoke checks are read-only and use this application's routes: `/api
 
 **Current verification boundary (`L5-4` completed; `L5-5`–`L5-7` pending):**
 - **Completed (`L5-4` / `C-04`):** Required GCP APIs (`run.googleapis.com`, `sqladmin.googleapis.com`, `artifactregistry.googleapis.com`, `cloudbuild.googleapis.com`, `secretmanager.googleapis.com`, `iam.googleapis.com`, and `iamcredentials.googleapis.com`) are enabled on project `cpe334-team45`. Cloud SQL (`equipflow-pg`), Artifact Registry (`equipflow`), Secret Manager secrets, migration job (`equipflow-migrate`), and Cloud Run service (`equipflow`) are provisioned and verified live at `https://equipflow-ddqo5fpv2a-as.a.run.app` on revision `equipflow-00001-t44` (`100%` traffic) deployed from source SHA `ac9b8dd564caa300473612f205b8e72ffbe57ed0` (covering `/api/health`, `/api/ready`, `401`/`403` role guards, browser role boundary, and Borrower request for `CPE-OSC-001` -> Custodian checkout).
-- **Pending (`L5-5` `#25` / `C-02`):** Configure Workload Identity Federation (`WIF_PROVIDER`, `WIF_SERVICE_ACCOUNT`), populate the `demo` GitHub Environment variables, enforce `protect-main` required status checks, and capture failing-PR merge-gate evidence.
+- **In Progress (`L5-5` `#25` / `C-02`):** `deploy/setup-wif.sh` and `deploy/tests/test-wif-stub.sh` added and `protect-main` ruleset activated on `main`; pending Google Cloud Shell execution of `deploy/setup-wif.sh`, `demo` GitHub Environment population, and captured `test/prove-gate` failing-PR merge-gate evidence (`C-02`).
 - **Pending (`L5-6` `#26` / `C-06`):** Trigger `.github/workflows/deploy.yml` from a reviewed Release PR merged into `main` and record the automated Actions run, released image digest, and Cloud Run revision/traffic.
 - **Pending (`L5-7` `#27` / `C-05`):** Verify synthetic domain-record persistence across Cloud Run restart and redeploy.
