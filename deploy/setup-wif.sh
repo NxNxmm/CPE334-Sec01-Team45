@@ -48,11 +48,20 @@ gcloud artifacts repositories add-iam-policy-binding "$AR_REPOSITORY" \
   --role="roles/artifactregistry.writer" \
   --quiet >/dev/null
 
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:${deployer_sa_email}" \
-  --role="roles/run.developer" \
-  --condition=None \
-  --quiet >/dev/null
+for attempt in 1 2 3 4 5; do
+  if gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:${deployer_sa_email}" \
+    --role="roles/run.developer" \
+    --condition=None \
+    --quiet >/dev/null 2>&1; then
+    break
+  fi
+  if [[ "$attempt" -eq 5 ]]; then
+    echo "Failed to bind roles/run.developer to ${deployer_sa_email} after 5 attempts." >&2
+    exit 1
+  fi
+  sleep "${IAM_RETRY_SLEEP_SECONDS:-3}"
+done
 
 gcloud iam service-accounts add-iam-policy-binding "$runtime_sa_email" \
   --project="$PROJECT_ID" \
