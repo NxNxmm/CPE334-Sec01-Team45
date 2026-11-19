@@ -10,11 +10,14 @@ cat > "$tmp_dir/gcloud" <<'STUB'
 set -euo pipefail
 printf '%s\n' "$*" >> "$GCLOUD_LOG"
 
-if [[ "$*" == *"services enable"* || "$*" == *"auth configure-docker"* || "$*" == *"add-iam-policy-binding"* ]]; then
+if [[ "$*" == *"services enable"* || "$*" == *"auth configure-docker"* || "$*" == *"add-iam-policy-binding"* || "$*" == *"builds submit"* ]]; then
   exit 0
 fi
 
-if [[ "$*" == *"artifacts repositories describe"* ]]; then
+if [[ "$*" == *"projects describe"* ]]; then
+  printf '%s\n' "123456789012"
+  exit 0
+elif [[ "$*" == *"artifacts repositories describe"* ]]; then
   exit 1
 elif [[ "$*" == *"sql instances describe"* ]]; then
   if [[ "$*" == *"connectionName"* ]]; then
@@ -38,6 +41,9 @@ elif [[ "$*" == *"secrets create"* ]]; then
   cat > /dev/null
   exit 0
 elif [[ "$*" == *"iam service-accounts describe"* ]]; then
+  if [[ "$*" == *"123456789012-compute@developer.gserviceaccount.com"* ]]; then
+    exit 0
+  fi
   exit 1
 elif [[ "$*" == *"artifacts docker images describe"* ]]; then
   if [[ "$*" == *"-db-tools"* ]]; then
@@ -103,7 +109,7 @@ if DEMO_USER_PASSWORD="replace-with-a-seed-password" bash "$repo_root/deploy/dep
   exit 1
 fi
 
-# 2. Clean first-deploy simulation succeeds end-to-end
+# 2. Clean first-deploy simulation succeeds end-to-end (default BUILD_METHOD=cloudbuild)
 : > "$GCLOUD_LOG"
 : > "$DOCKER_LOG"
 : > "$PYTHON_LOG"
@@ -119,11 +125,9 @@ fi
 db_secret_val="$(cat "$SECRET_DB_URL_FILE")"
 [[ "$db_secret_val" == *"?host=/cloudsql/cpe334-team45:asia-southeast1:equipflow-pg" ]]
 
-# Verify linux/amd64 builds and pushes for both runtime and db-tools targets
-grep -q -- "build --platform linux/amd64 --tag asia-southeast1-docker.pkg.dev/cpe334-team45/equipflow/app:${IMAGE_TAG}" "$DOCKER_LOG"
-grep -q -- "build --platform linux/amd64 --target db-tools --tag asia-southeast1-docker.pkg.dev/cpe334-team45/equipflow/app:${IMAGE_TAG}-db-tools" "$DOCKER_LOG"
-grep -q -- "push asia-southeast1-docker.pkg.dev/cpe334-team45/equipflow/app:${IMAGE_TAG}" "$DOCKER_LOG"
-grep -q -- "push asia-southeast1-docker.pkg.dev/cpe334-team45/equipflow/app:${IMAGE_TAG}-db-tools" "$DOCKER_LOG"
+# Verify Cloud Build IAM bindings and builds submit invocation
+grep -q -- "artifacts repositories add-iam-policy-binding equipflow --location=asia-southeast1 --project=cpe334-team45 --member=serviceAccount:123456789012-compute@developer.gserviceaccount.com --role=roles/artifactregistry.writer" "$GCLOUD_LOG"
+grep -q -- "builds submit ${repo_root} --project=cpe334-team45 --region=asia-southeast1 --config=${repo_root}/deploy/cloudbuild.yaml --substitutions=_IMAGE_BASE=asia-southeast1-docker.pkg.dev/cpe334-team45/equipflow/app,_IMAGE_TAG=${IMAGE_TAG}" "$GCLOUD_LOG"
 
 # Verify migration job configuration uses db-tools digest and npm run db:migrate
 grep -q -- "run jobs create equipflow-migrate --image=${EXPECTED_MIGRATION_DIGEST}" "$GCLOUD_LOG"
@@ -138,6 +142,15 @@ deploy_line="$(grep -n "run deploy equipflow --image=${EXPECTED_RUNTIME_DIGEST}"
 
 # Verify smoke test ran against HTTPS Cloud Run service URL
 grep -q -- "deploy/smoke_test.py https://equipflow-stub-as.a.run.app" "$PYTHON_LOG"
+
+# 2b. Optional BUILD_METHOD=docker still builds & pushes linux/amd64 images via docker
+: > "$GCLOUD_LOG"
+: > "$DOCKER_LOG"
+BUILD_METHOD=docker STUB_DEMO_SECRET_EXISTS=true DEMO_USER_PASSWORD="" bash "$repo_root/deploy/deploy.sh" > /dev/null
+grep -q -- "build --platform linux/amd64 --tag asia-southeast1-docker.pkg.dev/cpe334-team45/equipflow/app:${IMAGE_TAG}" "$DOCKER_LOG"
+grep -q -- "build --platform linux/amd64 --target db-tools --tag asia-southeast1-docker.pkg.dev/cpe334-team45/equipflow/app:${IMAGE_TAG}-db-tools" "$DOCKER_LOG"
+grep -q -- "push asia-southeast1-docker.pkg.dev/cpe334-team45/equipflow/app:${IMAGE_TAG}" "$DOCKER_LOG"
+grep -q -- "push asia-southeast1-docker.pkg.dev/cpe334-team45/equipflow/app:${IMAGE_TAG}-db-tools" "$DOCKER_LOG"
 
 # 3. Migration failure aborts before Cloud Run service deploy
 : > "$GCLOUD_LOG"
@@ -156,4 +169,4 @@ if bash "$repo_root/deploy/teardown.sh" > /dev/null 2>&1; then
   exit 1
 fi
 
-echo 'PASS deploy/deploy.sh provisions Cloud SQL/AR/Secrets/SA, migrates & seeds before immutable-digest rollout, aborts on migration failure, and guards teardown.'
+echo 'PASS deploy/deploy.sh provisions Cloud SQL/AR/Secrets/SA, builds via Cloud Build or Docker, migrates & seeds before immutable-digest rollout, aborts on migration failure, and guards teardown.'

@@ -15,6 +15,7 @@ CLOUD_RUN_MIGRATION_JOB="${CLOUD_RUN_MIGRATION_JOB:-equipflow-migrate}"
 RUNTIME_SA_NAME="${RUNTIME_SA_NAME:-equipflow-runner}"
 IMAGE_TAG="${IMAGE_TAG:-$(git -C "$repo_root" rev-parse HEAD)}"
 RUN_INITIAL_SEED="${RUN_INITIAL_SEED:-true}"
+BUILD_METHOD="${BUILD_METHOD:-cloudbuild}"
 
 [[ "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]] || {
   echo 'IMAGE_TAG must be a full 40-character commit SHA.' >&2
@@ -22,6 +23,10 @@ RUN_INITIAL_SEED="${RUN_INITIAL_SEED:-true}"
 }
 [[ "$RUN_INITIAL_SEED" == true || "$RUN_INITIAL_SEED" == false ]] || {
   echo 'RUN_INITIAL_SEED must be true or false.' >&2
+  exit 1
+}
+[[ "$BUILD_METHOD" == cloudbuild || "$BUILD_METHOD" == docker ]] || {
+  echo 'BUILD_METHOD must be cloudbuild or docker.' >&2
   exit 1
 }
 
@@ -139,12 +144,49 @@ for secret_name in DATABASE_URL JWT_SECRET DEMO_USER_PASSWORD; do
     --quiet >/dev/null
 done
 
-echo "Building and pushing commit-SHA images (${IMAGE_TAG}) for linux/amd64..."
-gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
-docker build --platform linux/amd64 --tag "${image_base}:${IMAGE_TAG}" "$repo_root"
-docker build --platform linux/amd64 --target db-tools --tag "${image_base}:${IMAGE_TAG}-db-tools" "$repo_root"
-docker push "${image_base}:${IMAGE_TAG}"
-docker push "${image_base}:${IMAGE_TAG}-db-tools"
+if [[ "$BUILD_METHOD" == cloudbuild ]]; then
+  project_number="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
+  if [[ -n "$project_number" ]]; then
+    for build_sa in \
+      "${project_number}-compute@developer.gserviceaccount.com" \
+      "${project_number}@cloudbuild.gserviceaccount.com"; do
+      if gcloud iam service-accounts describe "$build_sa" \
+        --project="$PROJECT_ID" >/dev/null 2>&1; then
+        gcloud artifacts repositories add-iam-policy-binding "$AR_REPOSITORY" \
+          --location="$REGION" \
+          --project="$PROJECT_ID" \
+          --member="serviceAccount:${build_sa}" \
+          --role="roles/artifactregistry.writer" \
+          --quiet >/dev/null
+        gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+          --member="serviceAccount:${build_sa}" \
+          --role="roles/logging.logWriter" \
+          --condition=None \
+          --quiet >/dev/null
+        gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+          --member="serviceAccount:${build_sa}" \
+          --role="roles/storage.objectViewer" \
+          --condition=None \
+          --quiet >/dev/null
+      fi
+    done
+  fi
+
+  echo "Building and pushing commit-SHA images (${IMAGE_TAG}) via Google Cloud Build..."
+  gcloud builds submit "$repo_root" \
+    --project="$PROJECT_ID" \
+    --region="$REGION" \
+    --config="$repo_root/deploy/cloudbuild.yaml" \
+    --substitutions="_IMAGE_BASE=${image_base},_IMAGE_TAG=${IMAGE_TAG}" \
+    --quiet
+else
+  echo "Building and pushing commit-SHA images (${IMAGE_TAG}) for linux/amd64..."
+  gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+  docker build --platform linux/amd64 --tag "${image_base}:${IMAGE_TAG}" "$repo_root"
+  docker build --platform linux/amd64 --target db-tools --tag "${image_base}:${IMAGE_TAG}-db-tools" "$repo_root"
+  docker push "${image_base}:${IMAGE_TAG}"
+  docker push "${image_base}:${IMAGE_TAG}-db-tools"
+fi
 
 resolve_digest() {
   local image_ref="$1"
