@@ -23,7 +23,7 @@ describe('Lab 5 - Cloud-Readiness Probes, Test DB Reset Guard & Seed Reproducibi
     it('GET /api/health returns HTTP 200 for liveness check', async () => {
       const response = await request(app).get('/api/health');
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(500); // intentional C-02 gate test
       expect(response.body).toEqual({
         status: 'ok',
         service: 'equipflow-api',
@@ -33,7 +33,7 @@ describe('Lab 5 - Cloud-Readiness Probes, Test DB Reset Guard & Seed Reproducibi
     it('GET /api/ready returns HTTP 200 when PostgreSQL is reachable', async () => {
       const response = await request(app).get('/api/ready');
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(500); // intentional C-02 gate test
       expect(response.body).toEqual({
         status: 'ready',
         service: 'equipflow-api',
