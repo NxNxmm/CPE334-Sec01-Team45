@@ -211,16 +211,59 @@ After `deploy/deploy.sh` prints `SERVICE_URL` and `LATEST_REVISION` and passes `
      --format='yaml(status.url,status.latestReadyRevisionName,status.traffic)'
    ```
 
-#### Post-Grading Cost Cleanup (`R-12`)
+#### Post-Grading Cost Cleanup (`R-12`) & Temporary Idle Pause
 >
 > [!IMPORTANT]
-> Keep the Cloud Run service and Cloud SQL instance running until Lab 5 grading concludes. Only after grading is complete, run [`deploy/teardown.sh`](../../../deploy/teardown.sh):
+> Cloud Run (`--min-instances=0`) scales to zero with \$0 idle compute cost. Only the Cloud SQL instance (`equipflow-pg`, `db-f1-micro`) accrues compute charges while running. Keep both Cloud Run and Cloud SQL active (`ALWAYS`) throughout teammate review, CI/CD release testing, and Lab 5 grading (`R-12`).
 >
+> **Temporary pause/resume while idle before submission (Episode 9):**
+> ```bash
+> # Pause Cloud SQL compute temporarily while idle
+> gcloud sql instances patch equipflow-pg --activation-policy=NEVER --project=cpe334-team45
+>
+> # Resume Cloud SQL before testing, CI/CD runs, or grading
+> gcloud sql instances patch equipflow-pg --activation-policy=ALWAYS --project=cpe334-team45
+> ```
+>
+> **Permanent teardown only AFTER Lab 5 grading concludes:**
 > ```bash
 > bash deploy/teardown.sh --confirm-teardown
 > ```
 
-**Current verification boundary (`L5-4`):** `deploy/deploy.sh`, `deploy/teardown.sh`, and `deploy/tests/test-deploy-stub.sh` are validated via shell syntax checks and offline `gcloud`/`docker`/`python3` stub tests. Live Cloud SQL provisioning, Cloud Run deployment, and `C-04` URL-visible browser captures will be recorded after executing `bash deploy/deploy.sh` as project owner on `cpe334-team45`.
+#### Verified L5-4 / C-04 First-Deploy Evidence (2026-11-19 ICT)
+- **Deployed Source SHA:** `ac9b8dd564caa300473612f205b8e72ffbe57ed0`
+- **Cloud Build Run:** `e4015d37-479f-48f8-b3b8-d28d1c41e4a5` (`STATUS: SUCCESS`, duration `3M5S`)
+- **Runtime Image Digest:** `asia-southeast1-docker.pkg.dev/cpe334-team45/equipflow/app@sha256:ddc3b8d1de0d7feb4f53e4d6f1880b8646116edc676c75ffdeb01fed501f0e83`
+- **Migration (`db-tools`) Image Digest:** `asia-southeast1-docker.pkg.dev/cpe334-team45/equipflow/app@sha256:1a6d7d9a46052c51549dacc411d6ecf5800d0bc330fcb72aa2d3ef59ad69babf`
+- **Migration & Seed Executions:** `equipflow-migrate-7bw58` (`npm run db:migrate`, `1 / 1 complete`) and `equipflow-migrate-dntv9` (`npm run db:seed`, `1 / 1 complete`)
+- **Live Cloud Run URL & Active Revision:** `https://equipflow-ddqo5fpv2a-as.a.run.app` (`equipflow-00001-t44`, `100%` traffic)
+- **Browser Role Boundary (`C-04`):** Navigating directly to `https://equipflow-ddqo5fpv2a-as.a.run.app/custodian/desk` while signed in as `BORROWER` kept the user restricted to the Borrower portal without exposing Custodian operations.
+
+```text
+$ gcloud run services describe equipflow --project=cpe334-team45 --region=asia-southeast1 \
+    --format='yaml(status.url,status.latestReadyRevisionName,status.traffic)'
+status:
+  latestReadyRevisionName: equipflow-00001-t44
+  traffic:
+  - latestRevision: true
+    percent: 100
+    revisionName: equipflow-00001-t44
+  url: https://equipflow-ddqo5fpv2a-as.a.run.app
+
+$ curl -sS https://equipflow-ddqo5fpv2a-as.a.run.app/api/health
+{"status":"ok","service":"equipflow-api"}
+
+$ curl -sS https://equipflow-ddqo5fpv2a-as.a.run.app/api/ready
+{"status":"ready","service":"equipflow-api","db":"connected"}
+
+$ curl -sS -w "\nHTTP %{http_code}\n" https://equipflow-ddqo5fpv2a-as.a.run.app/api/v1/custodian/requests
+{"error":{"code":"UNAUTHENTICATED","message":"Authentication token is missing or malformed"}}
+HTTP 401
+
+$ curl -sS -w "\nHTTP %{http_code}\n" -H "Authorization: Bearer <BORROWER_JWT_REDACTED>" https://equipflow-ddqo5fpv2a-as.a.run.app/api/v1/custodian/requests
+{"error":{"code":"FORBIDDEN_ROLE","message":"Access denied for role BORROWER"}}
+HTTP 403
+```
 
 ### 5.1 Automated main deployment (`L5-6`)
 
