@@ -82,6 +82,8 @@ if [[ "$*" == *"iam workload-identity-pools describe"* ]]; then
   fi
   exit 1
 fi
+
+exit 0
 STUB
 chmod +x "$tmp_dir/gcloud"
 
@@ -104,6 +106,14 @@ export CURL_LOG="$tmp_dir/curl.log"
 export PROVIDER_STATE_FILE="$tmp_dir/provider_state.env"
 export IAM_RETRY_SLEEP_SECONDS="0"
 
+unset GITHUB_REPOSITORY GITHUB_REPOSITORY_ID \
+  PROJECT_ID REGION AR_REPOSITORY AR_IMAGE \
+  CLOUD_RUN_SERVICE CLOUD_RUN_MIGRATION_JOB \
+  RUNTIME_SA_NAME DEPLOYER_SA_NAME \
+  WIF_POOL_NAME WIF_PROVIDER_NAME \
+  DEPLOY_REF DEPLOY_ENVIRONMENT DEPLOY_WORKFLOW_PATH \
+  WIF_SKIP_PROVIDER_UPDATE
+
 # 1. Reject invalid GITHUB_REPOSITORY format and non-numeric GITHUB_REPOSITORY_ID
 if GITHUB_REPOSITORY="invalid-repo-format" bash "$repo_root/deploy/setup-wif.sh" > /dev/null 2>&1; then
   echo 'Expected invalid GITHUB_REPOSITORY format to be rejected.' >&2
@@ -119,6 +129,7 @@ fi
 : > "$CURL_LOG"
 rm -f "$PROVIDER_STATE_FILE"
 output="$(bash "$repo_root/deploy/setup-wif.sh")"
+grep -Fq -- "https://api.github.com/repos/NxNxmm/CPE334-Sec01-Team45" "$CURL_LOG"
 
 # Never create downloaded service-account JSON keys
 if grep -q 'keys create' "$GCLOUD_LOG"; then
