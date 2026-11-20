@@ -12,11 +12,89 @@ DEPLOYER_SA_NAME="${DEPLOYER_SA_NAME:-equipflow-deployer}"
 WIF_POOL_NAME="${WIF_POOL_NAME:-github-pool}"
 WIF_PROVIDER_NAME="${WIF_PROVIDER_NAME:-github-provider}"
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-NxNxmm/CPE334-Sec01-Team45}"
+DEPLOY_REF="${DEPLOY_REF:-refs/heads/main}"
+DEPLOY_ENVIRONMENT="${DEPLOY_ENVIRONMENT:-demo}"
+DEPLOY_WORKFLOW_PATH="${DEPLOY_WORKFLOW_PATH:-.github/workflows/deploy.yml}"
 
 [[ "$GITHUB_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || {
   echo 'GITHUB_REPOSITORY must be in owner/repo format.' >&2
   exit 1
 }
+
+resolve_python() {
+  for candidate in "${PYTHON_BIN:-}" python3 python; do
+    if [[ -n "$candidate" ]] && "$candidate" -c 'import json, sys' >/dev/null 2>&1; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  echo 'A working python3 or python interpreter is required.' >&2
+  return 1
+}
+
+PYTHON_EXE="$(resolve_python)"
+
+DEPLOY_WORKFLOW_REF="${GITHUB_REPOSITORY}/${DEPLOY_WORKFLOW_PATH}@${DEPLOY_REF}"
+EXPECTED_ISSUER_URI="https://token.actions.githubusercontent.com"
+EXPECTED_ATTRIBUTE_MAPPING="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository,attribute.repository_id=assertion.repository_id,attribute.ref=assertion.ref,attribute.environment=assertion.environment,attribute.job_workflow_ref=assertion.job_workflow_ref"
+
+build_attribute_condition() {
+  local repo_id="$1"
+  printf "assertion.repository == '%s' && assertion.repository_id == '%s' && assertion.ref == '%s' && assertion.environment == '%s' && assertion.job_workflow_ref == '%s'" \
+    "$GITHUB_REPOSITORY" "$repo_id" "$DEPLOY_REF" "$DEPLOY_ENVIRONMENT" "$DEPLOY_WORKFLOW_REF"
+}
+
+if [[ "${1:-}" == "--evaluate-claims" ]]; then
+  claims_json="${2:-}"
+  [[ -n "$claims_json" ]] || {
+    echo 'Usage: setup-wif.sh --evaluate-claims <json>' >&2
+    exit 1
+  }
+  [[ "${GITHUB_REPOSITORY_ID:-}" =~ ^[0-9]+$ ]] || {
+    echo 'GITHUB_REPOSITORY_ID must be a numeric GitHub repository ID.' >&2
+    exit 1
+  }
+  expected_condition="$(build_attribute_condition "$GITHUB_REPOSITORY_ID")"
+  CLAIMS_JSON="$claims_json" \
+  EXPECTED_REPOSITORY="$GITHUB_REPOSITORY" \
+  EXPECTED_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
+  EXPECTED_REF="$DEPLOY_REF" \
+  EXPECTED_ENVIRONMENT="$DEPLOY_ENVIRONMENT" \
+  EXPECTED_WORKFLOW_REF="$DEPLOY_WORKFLOW_REF" \
+  EXPECTED_CONDITION="$expected_condition" \
+  "$PYTHON_EXE" - <<'PY'
+import json
+import os
+import sys
+
+claims = json.loads(os.environ["CLAIMS_JSON"])
+checks = [
+    ("repository", str(claims.get("repository", "")) == os.environ["EXPECTED_REPOSITORY"]),
+    ("repository_id", str(claims.get("repository_id", "")) == os.environ["EXPECTED_REPOSITORY_ID"]),
+    ("ref", str(claims.get("ref", "")) == os.environ["EXPECTED_REF"]),
+    ("environment", str(claims.get("environment", "")) == os.environ["EXPECTED_ENVIRONMENT"]),
+    ("job_workflow_ref", str(claims.get("job_workflow_ref", "")) == os.environ["EXPECTED_WORKFLOW_REF"]),
+]
+failed = [name for name, ok in checks if not ok]
+if failed:
+    print(f"REJECTED: WIF claims failed policy check for: {', '.join(failed)}", file=sys.stderr)
+    sys.exit(1)
+print("ACCEPTED: WIF claims satisfy strict deployment policy.")
+PY
+  exit 0
+fi
+
+if [[ -z "${GITHUB_REPOSITORY_ID:-}" ]]; then
+  repo_json="$(curl -fsSL "https://api.github.com/repos/${GITHUB_REPOSITORY}")"
+  GITHUB_REPOSITORY_ID="$(printf '%s' "$repo_json" | "$PYTHON_EXE" -c 'import json,sys; data=json.load(sys.stdin); print(data["id"])')"
+fi
+
+[[ "${GITHUB_REPOSITORY_ID:-}" =~ ^[0-9]+$ ]] || {
+  echo 'GITHUB_REPOSITORY_ID must be a numeric GitHub repository ID (set GITHUB_REPOSITORY_ID or allow GitHub API lookup).' >&2
+  exit 1
+}
+
+EXPECTED_ATTRIBUTE_CONDITION="$(build_attribute_condition "$GITHUB_REPOSITORY_ID")"
 
 runtime_sa_email="${RUNTIME_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 deployer_sa_email="${DEPLOYER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
@@ -94,17 +172,72 @@ if ! gcloud iam workload-identity-pools providers describe "$WIF_PROVIDER_NAME" 
     --location="global" \
     --workload-identity-pool="$WIF_POOL_NAME" \
     --display-name="GitHub Actions Provider" \
-    --issuer-uri="https://token.actions.githubusercontent.com" \
-    --attribute-mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository,attribute.repository_owner=assertion.repository_owner" \
-    --attribute-condition="assertion.repository == '${GITHUB_REPOSITORY}'" \
+    --issuer-uri="$EXPECTED_ISSUER_URI" \
+    --attribute-mapping="$EXPECTED_ATTRIBUTE_MAPPING" \
+    --attribute-condition="$EXPECTED_ATTRIBUTE_CONDITION" \
     --quiet
+else
+  echo "Updating existing OIDC Workload Identity Provider ${WIF_PROVIDER_NAME}..."
+  if [[ "${WIF_SKIP_PROVIDER_UPDATE:-false}" != "true" ]]; then
+    gcloud iam workload-identity-pools providers update-oidc "$WIF_PROVIDER_NAME" \
+      --project="$PROJECT_ID" \
+      --location="global" \
+      --workload-identity-pool="$WIF_POOL_NAME" \
+      --display-name="GitHub Actions Provider" \
+      --issuer-uri="$EXPECTED_ISSUER_URI" \
+      --attribute-mapping="$EXPECTED_ATTRIBUTE_MAPPING" \
+      --attribute-condition="$EXPECTED_ATTRIBUTE_CONDITION" \
+      --quiet
+  fi
 fi
 
-echo "Binding ${GITHUB_REPOSITORY} workload identity principal to ${deployer_sa_email}..."
-gcloud iam service-accounts add-iam-policy-binding "$deployer_sa_email" \
+provider_json="$(gcloud iam workload-identity-pools providers describe "$WIF_PROVIDER_NAME" \
+  --project="$PROJECT_ID" --location="global" --workload-identity-pool="$WIF_POOL_NAME" --format=json)"
+
+PROVIDER_JSON="$provider_json" \
+EXPECTED_ISSUER_URI="$EXPECTED_ISSUER_URI" \
+EXPECTED_ATTRIBUTE_MAPPING="$EXPECTED_ATTRIBUTE_MAPPING" \
+EXPECTED_ATTRIBUTE_CONDITION="$EXPECTED_ATTRIBUTE_CONDITION" \
+"$PYTHON_EXE" - <<'PY'
+import json
+import os
+import sys
+
+provider = json.loads(os.environ["PROVIDER_JSON"])
+expected_issuer = os.environ["EXPECTED_ISSUER_URI"]
+expected_mapping = dict(pair.split("=", 1) for pair in os.environ["EXPECTED_ATTRIBUTE_MAPPING"].split(","))
+expected_condition = os.environ["EXPECTED_ATTRIBUTE_CONDITION"]
+
+actual_issuer = (provider.get("oidc") or {}).get("issuerUri")
+actual_mapping = provider.get("attributeMapping") or {}
+actual_condition = provider.get("attributeCondition") or ""
+
+errors = []
+if actual_issuer != expected_issuer:
+    errors.append(f"issuerUri mismatch: expected {expected_issuer!r}, got {actual_issuer!r}")
+if actual_mapping != expected_mapping:
+    errors.append(f"attributeMapping mismatch: expected {expected_mapping!r}, got {actual_mapping!r}")
+if actual_condition != expected_condition:
+    errors.append(f"attributeCondition mismatch: expected {expected_condition!r}, got {actual_condition!r}")
+
+if errors:
+    for err in errors:
+        print(f"ERROR: WIF provider verification failed: {err}", file=sys.stderr)
+    sys.exit(1)
+PY
+
+echo "Removing legacy repository-name WIF binding if present..."
+gcloud iam service-accounts remove-iam-policy-binding "$deployer_sa_email" \
   --project="$PROJECT_ID" \
   --role="roles/iam.workloadIdentityUser" \
   --member="principalSet://iam.googleapis.com/${pool_id}/attribute.repository/${GITHUB_REPOSITORY}" \
+  --quiet >/dev/null 2>&1 || true
+
+echo "Binding immutable repository_id ${GITHUB_REPOSITORY_ID} (${GITHUB_REPOSITORY}) to ${deployer_sa_email}..."
+gcloud iam service-accounts add-iam-policy-binding "$deployer_sa_email" \
+  --project="$PROJECT_ID" \
+  --role="roles/iam.workloadIdentityUser" \
+  --member="principalSet://iam.googleapis.com/${pool_id}/attribute.repository_id/${GITHUB_REPOSITORY_ID}" \
   --quiet >/dev/null
 
 provider_name="$(gcloud iam workload-identity-pools providers describe "$WIF_PROVIDER_NAME" \
@@ -116,6 +249,7 @@ provider_name="$(gcloud iam workload-identity-pools providers describe "$WIF_PRO
 
 echo ""
 echo "=== GitHub Environment 'demo' Variables (Settings -> Environments -> demo) ==="
+echo "GITHUB_REPOSITORY_ID=${GITHUB_REPOSITORY_ID}"
 echo "GCP_PROJECT_ID=${PROJECT_ID}"
 echo "GCP_REGION=${REGION}"
 echo "WIF_PROVIDER=${provider_name}"
