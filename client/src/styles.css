@@ -498,3 +498,36 @@ body {
   background: var(--color-matcha-green);
   color: var(--color-deep-ocean);
 }
+
+/* Login Lab Lending Policy Notice & Portal Footer */
+.login-policy-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.65rem;
+  padding: 0.7rem 0.85rem;
+  background-color: var(--color-vanilla-milk);
+  border: 1px solid var(--color-border-subtle);
+  border-left: 3px solid var(--color-matcha-green);
+  border-radius: 8px;
+  color: var(--color-deep-ocean);
+  line-height: 1.45;
+}
+
+.login-policy-pill {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background-color: var(--color-matcha-green);
+  color: var(--color-deep-ocean);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.portal-footer {
+  background-color: var(--color-vanilla-milk);
+  border-top: 1px solid var(--color-border-subtle);
+  color: var(--color-deep-ocean);
+}

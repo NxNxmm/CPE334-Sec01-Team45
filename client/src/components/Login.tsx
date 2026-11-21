@@ -73,7 +73,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     <div className="login-card shadow-sm mx-auto my-5">
       <div className="login-header text-center">
         <h1 className="h4 fw-bold mb-1">EquipFlow — CPE Hardware Lending</h1>
-        <p className="small mb-0 opacity-75">Department of Computer Engineering</p>
+        <p className="small mb-0 opacity-75">Department of Computer Engineering · KMUTT</p>
       </div>
 
       <div className="p-4" style={{ backgroundColor: '#ffffff' }}>
@@ -139,6 +139,13 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             )}
           </button>
         </form>
+
+        <div className="login-policy-note mt-3" role="note" aria-label="Borrowing policy and quota">
+          <span className="login-policy-pill">Lending Policy</span>
+          <span className="small">
+            Up to 3 pending requests and active loans combined · 7-day standard loan period
+          </span>
+        </div>
 
         {showLocalCredentials && (
           <div className="credentials-callout mt-4">
