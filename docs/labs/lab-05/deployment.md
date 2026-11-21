@@ -302,8 +302,10 @@ HTTP 403
    - Configured GitHub branch ruleset **`protect-main`** on `main`: block force pushes, require a pull request with `1` approval (dismiss stale approvals on new commits), and require status check **`test-and-docker`** to pass before merging.
    - To verify `C-02`, open a temporary PR from `test/prove-gate` targeting `main` containing one intentionally failing test, wait for `test-and-docker` to fail and confirm GitHub blocks merging, capture the PR and failed Actions run evidence, then close the temporary PR without merging and delete `test/prove-gate`.
 
-#### Verified L5-5 / C-02 WIF & Merge-Gate Evidence (2026-11-20 ICT)
-- **Keyless WIF & Deployer Identity (`R-07`, `R-12`):** Executed `bash deploy/setup-wif.sh` in Google Cloud Shell on project `cpe334-team45` (`906022478800`), provisioning `equipflow-deployer@cpe334-team45.iam.gserviceaccount.com` with least-privilege IAM roles (`roles/artifactregistry.writer` on `equipflow`, `roles/run.developer` on `cpe334-team45`, `roles/iam.serviceAccountUser` on `equipflow-runner@cpe334-team45.iam.gserviceaccount.com`), Workload Identity Pool `github-pool`, and OIDC Provider `projects/906022478800/locations/global/workloadIdentityPools/github-pool/providers/github-provider` with zero downloaded JSON keys. On `2026-11-20`, `deploy/setup-wif.sh` was tightened and re-executed in Google Cloud Shell to enforce `repository_id == '1455066360'`, `refs/heads/main`, `demo`, and fail-closed verification (`update-oidc`), remove the legacy `attribute.repository` binding, and bind `attribute.repository_id/1455066360`. Following peer review on `ddb4dbe`, `deploy/setup-wif.sh` and `deploy/tests/test-wif-stub.sh` were updated from `job_workflow_ref` to `workflow_ref` (`assertion.workflow_ref == 'NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main'`); re-run `bash deploy/setup-wif.sh` in Google Cloud Shell on `cpe334-team45` to update the live `github-provider` via `update-oidc` and verify `providers describe --format=json` before closing `#25`.
+#### Verified L5-5 / C-02 WIF & Merge-Gate Evidence (2026-11-20 – 2026-11-21 ICT)
+- **Keyless WIF & Deployer Identity (`R-07`, `R-12`):** Executed `bash deploy/setup-wif.sh` in Google Cloud Shell on project `cpe334-team45` (`906022478800`), provisioning `equipflow-deployer@cpe334-team45.iam.gserviceaccount.com` with least-privilege IAM roles (`roles/artifactregistry.writer` on `equipflow`, `roles/run.developer` on `cpe334-team45`, `roles/iam.serviceAccountUser` on `equipflow-runner@cpe334-team45.iam.gserviceaccount.com`), Workload Identity Pool `github-pool`, and OIDC Provider `projects/906022478800/locations/global/workloadIdentityPools/github-pool/providers/github-provider` with zero downloaded JSON keys. On `2026-11-21 ICT` (from commit `3bb7dbc`), `bash deploy/setup-wif.sh` was re-executed in Google Cloud Shell on `cpe334-team45` (`906022478800`) to converge `github-provider` (`update-oidc`) from `job_workflow_ref` to `workflow_ref` with fail-closed verification passing:
+  - Live `gcloud iam workload-identity-pools providers describe github-provider ... --format=json` confirmed `state: "ACTIVE"`, `issuerUri: "https://token.actions.githubusercontent.com"`, `attributeMapping` containing `attribute.workflow_ref: assertion.workflow_ref` (with no `job_workflow_ref`), and `attributeCondition` checking `repository`, `repository_id == '1455066360'`, `refs/heads/main`, `demo`, and `workflow_ref == 'NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main'`.
+  - Live `gcloud iam service-accounts get-iam-policy equipflow-deployer@cpe334-team45.iam.gserviceaccount.com` confirmed a single `roles/iam.workloadIdentityUser` binding for `principalSet://iam.googleapis.com/projects/906022478800/locations/global/workloadIdentityPools/github-pool/attribute.repository_id/1455066360` with no legacy `attribute.repository` binding.
 - **GitHub Environment `demo`:** Configured all 8 required deployment variables in `Settings -> Environments -> demo` (`WIF_PROVIDER` retains the same provider resource path).
 - **Branch Ruleset & Failing-PR Merge-Gate Proof (`C-02` / `R-06`):**
   - Ruleset **`protect-main`** active on `main` requiring PR approval (`1` review, dismiss stale approvals), status check **`test-and-docker`**, and force-push protection.
@@ -337,6 +339,36 @@ CLOUD_RUN_SERVICE=equipflow
 CLOUD_RUN_MIGRATION_JOB=equipflow-migrate
 ```
 
+```text
+$ gcloud iam workload-identity-pools providers describe github-provider --project=cpe334-team45 --location=global --workload-identity-pool=github-pool --format=json
+{
+  "attributeCondition": "assertion.repository == 'NxNxmm/CPE334-Sec01-Team45' && assertion.repository_id == '1455066360' && assertion.ref == 'refs/heads/main' && assertion.environment == 'demo' && assertion.workflow_ref == 'NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main'",
+  "attributeMapping": {
+    "attribute.actor": "assertion.actor",
+    "attribute.environment": "assertion.environment",
+    "attribute.ref": "assertion.ref",
+    "attribute.repository": "assertion.repository",
+    "attribute.repository_id": "assertion.repository_id",
+    "attribute.workflow_ref": "assertion.workflow_ref",
+    "google.subject": "assertion.sub"
+  },
+  "displayName": "GitHub Actions Provider",
+  "name": "projects/906022478800/locations/global/workloadIdentityPools/github-pool/providers/github-provider",
+  "oidc": {
+    "issuerUri": "https://token.actions.githubusercontent.com"
+  },
+  "state": "ACTIVE"
+}
+
+$ gcloud iam service-accounts get-iam-policy equipflow-deployer@cpe334-team45.iam.gserviceaccount.com --project=cpe334-team45
+bindings:
+- members:
+  - principalSet://iam.googleapis.com/projects/906022478800/locations/global/workloadIdentityPools/github-pool/attribute.repository_id/1455066360
+  role: roles/iam.workloadIdentityUser
+etag: BwZgxH4lYlU=
+version: 1
+```
+
 ### 5.2 Automated main deployment (`L5-6`)
 
 `.github/workflows/deploy.yml` is designed to deploy only after a push to `main`, which in this project should be a reviewed release PR from `sprint-1-staging`. Its `test` job reuses `ci-docker.yml`; the deploy job requires that job to pass before it authenticates through Workload Identity Federation, builds and pushes the `runtime` and `db-tools` targets tagged with the 40-character source SHA, resolves both immutable image digests, runs the migration job with the `db-tools` image, updates the service with the production `runtime` image, and performs read-only HTTP smoke checks. The distinct image targets are required because `npm prune --omit=dev` removes the Prisma CLI from `runtime`, while the migrations require Prisma CLI. A migration failure stops the workflow before service rollout. The optional manual rollback input must be a full SHA already present in Artifact Registry; rollback skips migrations and reuses that runtime image.
@@ -358,8 +390,8 @@ The Cloud Run service and migration job must already reference the intended Secr
 
 The workflow smoke checks are read-only and use this application's routes: `/api/health`, `/api/ready`, and `/`. The workflow summary records the source SHA, image tag/digest, service URL, rollback mode, and successful smoke step. The Actions run, exact Artifact Registry digest, and deployed Cloud Run revision/traffic still need to be captured after a real release for C-06.
 
-**Current verification boundary (`L5-4` completed; `L5-5` updating; `L5-6`–`L5-7` pending):**
+**Current verification boundary (`L5-4` & `L5-5` completed; `L5-6`–`L5-7` pending):**
 - **Completed (`L5-4` / `C-04`):** Required GCP APIs (`run.googleapis.com`, `sqladmin.googleapis.com`, `artifactregistry.googleapis.com`, `cloudbuild.googleapis.com`, `secretmanager.googleapis.com`, `iam.googleapis.com`, and `iamcredentials.googleapis.com`) are enabled on project `cpe334-team45`. Cloud SQL (`equipflow-pg`), Artifact Registry (`equipflow`), Secret Manager secrets, migration job (`equipflow-migrate`), and Cloud Run service (`equipflow`) are provisioned and verified live at `https://equipflow-ddqo5fpv2a-as.a.run.app` on revision `equipflow-00001-t44` (`100%` traffic) deployed from source SHA `ac9b8dd564caa300473612f205b8e72ffbe57ed0` (covering `/api/health`, `/api/ready`, `401`/`403` role guards, browser role boundary, and Borrower request for `CPE-OSC-001` -> Custodian checkout).
-- **Completed / Updating (`L5-5` `#25` / `C-02`):** Provisioned `equipflow-deployer@cpe334-team45.iam.gserviceaccount.com`, `github-pool` / `github-provider`, all 8 variables in the `demo` GitHub Environment, and activated `protect-main` on `main` (blocking failing PR `#34`, run `44601332891`, before closing `#34` without merging). Following review on `ddb4dbe`, `deploy/setup-wif.sh` and `deploy/tests/test-wif-stub.sh` now map and check `assertion.workflow_ref` (instead of `assertion.job_workflow_ref`) because the `deploy` job runs directly in `deploy.yml`; re-run `bash deploy/setup-wif.sh` and `gcloud iam workload-identity-pools providers describe github-provider --project=cpe334-team45 --location=global --workload-identity-pool=github-pool --format=json` in Google Cloud Shell on `cpe334-team45` to update the live provider and record the verified output before closing `#25`.
+- **Completed (`L5-5` `#25` / `C-02`):** Provisioned `equipflow-deployer@cpe334-team45.iam.gserviceaccount.com`, `github-pool` / `github-provider`, all 8 variables in the `demo` GitHub Environment, and activated `protect-main` on `main` (blocking failing PR `#34`, run `44601332891`, before closing `#34` without merging). On `2026-11-21 ICT` (from commit `3bb7dbc`), `bash deploy/setup-wif.sh` was re-executed in Google Cloud Shell on `cpe334-team45` (`906022478800`), and live `providers describe --format=json` plus `service-accounts get-iam-policy` confirmed `state: ACTIVE`, `attribute.workflow_ref`, `assertion.workflow_ref == 'NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main'` (with zero `job_workflow_ref` mapping/condition remaining), and a single `roles/iam.workloadIdentityUser` binding for `attribute.repository_id/1455066360`. End-to-end GitHub Actions OIDC exchange from `.github/workflows/deploy.yml` runs in `L5-6` (`#26`) once the release PR merges `deploy.yml` onto `main` (since `main` does not yet contain `deploy.yml` and the provider intentionally rejects non-`main` refs).
 - **Pending (`L5-6` `#26` / `C-06`):** Trigger `.github/workflows/deploy.yml` from a reviewed Release PR merged into `main` and record the automated Actions run, released image digest, and Cloud Run revision/traffic.
 - **Pending (`L5-7` `#27` / `C-05`):** Verify synthetic domain-record persistence across Cloud Run restart and redeploy.
