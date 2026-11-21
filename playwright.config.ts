@@ -1,6 +1,12 @@
+import 'dotenv/config';
 import { defineConfig, devices } from '@playwright/test';
+import { resolveAndValidateTestDatabaseUrl } from './server/src/config/test-db.js';
 
-process.env.DATABASE_URL = process.env.DATABASE_URL ?? 'file:./test.db';
+const validatedTestDbUrl = process.env.TEST_DATABASE_URL
+  ? resolveAndValidateTestDatabaseUrl(process.env)
+  : '';
+
+process.env.JWT_SECRET = process.env.JWT_SECRET ?? 'equipflow-test-jwt-secret';
 
 export default defineConfig({
   testDir: './e2e/sprint-1',
@@ -28,7 +34,9 @@ export default defineConfig({
     timeout: 60000,
     env: {
       ...process.env,
-      DATABASE_URL: 'file:./test.db',
+      DATABASE_URL: validatedTestDbUrl,
+      TEST_DATABASE_URL: validatedTestDbUrl,
+      JWT_SECRET: process.env.JWT_SECRET,
     },
   },
 });

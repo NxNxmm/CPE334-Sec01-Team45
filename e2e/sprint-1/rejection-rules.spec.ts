@@ -1,12 +1,17 @@
+import 'dotenv/config';
 import { test, expect } from '@playwright/test';
 import { PrismaClient, ItemCondition, ItemStatus, RequestStatus, Role } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { resolveAndValidateTestDatabaseUrl } from '../../server/src/config/test-db.js';
+
 const prisma = new PrismaClient({
   datasources: {
-    db: { url: process.env.DATABASE_URL ?? 'file:./test.db' },
+    db: {
+      url: resolveAndValidateTestDatabaseUrl(process.env),
+    },
   },
 });
 const screenshotDir = path.resolve(process.cwd(), 'docs/sprints/sprint-1/evidence/screenshots');

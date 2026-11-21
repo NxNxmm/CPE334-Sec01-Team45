@@ -1,0 +1,105 @@
+name: Deploy EquipFlow to Cloud Run
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Optional rollback target: full 40-character SHA already present in Artifact Registry."
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: equipflow-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    if: github.ref == 'refs/heads/main' && !inputs.image_tag
+    uses: ./.github/workflows/ci-docker.yml
+
+  deploy:
+    needs: test
+    if: >-
+      always() && !cancelled() && github.ref == 'refs/heads/main' &&
+      (needs.test.result == 'success' ||
+       (github.event_name == 'workflow_dispatch' && inputs.image_tag != '' && needs.test.result == 'skipped'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: demo
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION }}
+      AR_REPOSITORY: ${{ vars.AR_REPOSITORY }}
+      AR_IMAGE: ${{ vars.AR_IMAGE }}
+      CLOUD_RUN_SERVICE: ${{ vars.CLOUD_RUN_SERVICE }}
+      CLOUD_RUN_MIGRATION_JOB: ${{ vars.CLOUD_RUN_MIGRATION_JOB }}
+      IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
+      ROLLBACK: ${{ inputs.image_tag != '' }}
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate deployment settings
+        env:
+          WIF_PROVIDER: ${{ vars.WIF_PROVIDER }}
+          WIF_SERVICE_ACCOUNT: ${{ vars.WIF_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          for name in PROJECT_ID REGION AR_REPOSITORY AR_IMAGE CLOUD_RUN_SERVICE CLOUD_RUN_MIGRATION_JOB WIF_PROVIDER WIF_SERVICE_ACCOUNT; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing required GitHub Environment setting: $name" >&2
+              exit 1
+            fi
+          done
+          [[ "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]] || { echo 'Image tag must be a full 40-character commit SHA.' >&2; exit 1; }
+
+      - name: Authenticate to Google Cloud with Workload Identity Federation
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Build and push commit-tagged image
+        if: env.ROLLBACK != 'true'
+        run: |
+          set -euo pipefail
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          image_base="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPOSITORY}/${AR_IMAGE}"
+          docker build --tag "${image_base}:${IMAGE_TAG}" .
+          docker build --target db-tools --tag "${image_base}:${IMAGE_TAG}-db-tools" .
+          docker push "${image_base}:${IMAGE_TAG}"
+          docker push "${image_base}:${IMAGE_TAG}-db-tools"
+
+      - name: Run migration before rollout and update Cloud Run
+        run: bash deploy/release.sh
+
+      - name: Verify deployed service
+        run: python3 deploy/smoke_test.py "$SERVICE_URL"
+
+      - name: Record deployment evidence
+        run: |
+          {
+            echo '### EquipFlow Cloud Run deployment'
+            echo "- Source commit: \`${GITHUB_SHA}\`"
+            echo "- Runtime image: \`${DEPLOYED_IMAGE}\`"
+            if [[ -n "${MIGRATION_IMAGE:-}" ]]; then
+              echo "- Migration image: \`${MIGRATION_IMAGE}\`"
+            fi
+            echo "- Rollback: \`${ROLLBACK}\`"
+            echo "- Cloud Run URL: ${SERVICE_URL}"
+            echo '- Migration ran before service rollout; smoke checks passed.'
+          } >> "$GITHUB_STEP_SUMMARY"

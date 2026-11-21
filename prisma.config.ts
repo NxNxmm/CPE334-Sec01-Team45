@@ -10,6 +10,9 @@ export default defineConfig({
     seed: 'node --import tsx prisma/seed.ts',
   },
   datasource: {
-    url: process.env.DATABASE_URL ?? 'file:./dev.db',
+    url:
+      process.env.DATABASE_URL && !process.env.DATABASE_URL.startsWith('file:')
+        ? process.env.DATABASE_URL
+        : 'postgresql://appuser:localdevpassword@localhost:5432/equipflow?schema=public',
   },
 });

@@ -1,42 +1,38 @@
+import dotenv from 'dotenv';
 import { execSync } from 'node:child_process';
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveAndValidateTestDatabaseUrl } from '../src/config/test-db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 
-export async function setup() {
-  const testDbPath = path.resolve(repoRoot, 'prisma/test.db');
-  const testDbJournalPath = path.resolve(repoRoot, 'prisma/test.db-journal');
+dotenv.config({ path: path.resolve(repoRoot, '.env') });
+dotenv.config();
 
-  for (const file of [testDbPath, testDbJournalPath]) {
-    if (fs.existsSync(file)) {
-      fs.rmSync(file, { force: true });
-    }
-  }
+export async function setup() {
+  const testDatabaseUrl = resolveAndValidateTestDatabaseUrl(process.env);
+  const jwtSecret = process.env.JWT_SECRET ?? 'equipflow-test-jwt-secret';
 
   const env = {
     ...process.env,
-    DATABASE_URL: 'file:./test.db',
+    DATABASE_URL: testDatabaseUrl,
+    TEST_DATABASE_URL: testDatabaseUrl,
+    JWT_SECRET: jwtSecret,
   };
 
-  execSync('npx prisma migrate deploy', { cwd: repoRoot, stdio: 'inherit', env });
-  execSync('npx prisma db seed', { cwd: repoRoot, stdio: 'inherit', env });
+  execSync('npx prisma migrate reset --force --skip-seed --skip-generate', {
+    cwd: repoRoot,
+    stdio: 'inherit',
+    env,
+  });
+  execSync('npx prisma db seed', {
+    cwd: repoRoot,
+    stdio: 'inherit',
+    env,
+  });
 }
 
 export async function teardown() {
-  const testDbPath = path.resolve(repoRoot, 'prisma/test.db');
-  const testDbJournalPath = path.resolve(repoRoot, 'prisma/test.db-journal');
-
-  for (const file of [testDbPath, testDbJournalPath]) {
-    if (fs.existsSync(file)) {
-      try {
-        fs.rmSync(file, { force: true });
-      } catch {
-        // Ignore Windows file lock race on exit
-      }
-    }
-  }
+  // Disposable test schema in equipflow_test is reset cleanly before each suite run
 }
-
