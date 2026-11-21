@@ -143,9 +143,9 @@ grep -q -- "artifacts repositories add-iam-policy-binding equipflow --location=a
 grep -q -- "projects add-iam-policy-binding cpe334-team45 --member=serviceAccount:equipflow-deployer@cpe334-team45.iam.gserviceaccount.com --role=roles/run.developer" "$GCLOUD_LOG"
 grep -q -- "iam service-accounts add-iam-policy-binding equipflow-runner@cpe334-team45.iam.gserviceaccount.com --project=cpe334-team45 --member=serviceAccount:equipflow-deployer@cpe334-team45.iam.gserviceaccount.com --role=roles/iam.serviceAccountUser" "$GCLOUD_LOG"
 
-# Verify OIDC provider creation enforces immutable repository_id, main ref, demo environment, and deploy.yml
-expected_mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository,attribute.repository_id=assertion.repository_id,attribute.ref=assertion.ref,attribute.environment=assertion.environment,attribute.job_workflow_ref=assertion.job_workflow_ref"
-expected_condition="assertion.repository == 'NxNxmm/CPE334-Sec01-Team45' && assertion.repository_id == '1098765432' && assertion.ref == 'refs/heads/main' && assertion.environment == 'demo' && assertion.job_workflow_ref == 'NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main'"
+# Verify OIDC provider creation enforces immutable repository_id, main ref, demo environment, and workflow_ref
+expected_mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository,attribute.repository_id=assertion.repository_id,attribute.ref=assertion.ref,attribute.environment=assertion.environment,attribute.workflow_ref=assertion.workflow_ref"
+expected_condition="assertion.repository == 'NxNxmm/CPE334-Sec01-Team45' && assertion.repository_id == '1098765432' && assertion.ref == 'refs/heads/main' && assertion.environment == 'demo' && assertion.workflow_ref == 'NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main'"
 
 grep -q -- "iam workload-identity-pools providers create-oidc github-provider" "$GCLOUD_LOG"
 grep -Fq -- "--attribute-mapping=$expected_mapping" "$GCLOUD_LOG"
@@ -181,22 +181,40 @@ if WIF_SKIP_PROVIDER_UPDATE=true GITHUB_REPOSITORY_ID="1098765432" bash "$repo_r
   exit 1
 fi
 
+cat > "$PROVIDER_STATE_FILE" <<'EOF'
+STATE_ISSUER='https://token.actions.githubusercontent.com'
+STATE_MAPPING='google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository,attribute.repository_id=assertion.repository_id,attribute.ref=assertion.ref,attribute.environment=assertion.environment,attribute.job_workflow_ref=assertion.job_workflow_ref'
+STATE_CONDITION="assertion.repository == 'NxNxmm/CPE334-Sec01-Team45' && assertion.repository_id == '1098765432' && assertion.ref == 'refs/heads/main' && assertion.environment == 'demo' && assertion.job_workflow_ref == 'NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main'"
+EOF
+
+if WIF_SKIP_PROVIDER_UPDATE=true GITHUB_REPOSITORY_ID="1098765432" bash "$repo_root/deploy/setup-wif.sh" > /dev/null 2>&1; then
+  echo 'Expected drifted WIF provider using job_workflow_ref to fail closed when not updated.' >&2
+  exit 1
+fi
+
 : > "$GCLOUD_LOG"
 GITHUB_REPOSITORY_ID="1098765432" bash "$repo_root/deploy/setup-wif.sh" > /dev/null
 grep -q -- "iam workload-identity-pools providers update-oidc github-provider" "$GCLOUD_LOG"
+grep -Fq -- "--attribute-mapping=$expected_mapping" "$GCLOUD_LOG"
 grep -Fq -- "--attribute-condition=$expected_condition" "$GCLOUD_LOG"
 
-# 4. Verify claim evaluator accepts only main + demo + deploy.yml + matching repository_id
-valid_claims='{"repository":"NxNxmm/CPE334-Sec01-Team45","repository_id":"1098765432","ref":"refs/heads/main","environment":"demo","job_workflow_ref":"NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main"}'
+# 4. Verify claim evaluator models direct deploy.yml job token (workflow_ref present, job_workflow_ref absent)
+valid_claims='{"sub":"repo:NxNxmm/CPE334-Sec01-Team45:environment:demo","actor":"NxNxmm","repository":"NxNxmm/CPE334-Sec01-Team45","repository_id":"1098765432","ref":"refs/heads/main","environment":"demo","workflow_ref":"NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main"}'
+if printf '%s' "$valid_claims" | grep -q 'job_workflow_ref'; then
+  echo 'valid_claims must model a direct deploy.yml job where job_workflow_ref is absent.' >&2
+  exit 1
+fi
 GITHUB_REPOSITORY_ID="1098765432" bash "$repo_root/deploy/setup-wif.sh" --evaluate-claims "$valid_claims" > /dev/null
 
 rejected_cases=(
-  '{"repository":"NxNxmm/CPE334-Sec01-Team45","repository_id":"1098765432","ref":"refs/heads/sprint-1-staging","environment":"demo","job_workflow_ref":"NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main"}'
-  '{"repository":"NxNxmm/CPE334-Sec01-Team45","repository_id":"1098765432","ref":"refs/pull/35/merge","environment":"demo","job_workflow_ref":"NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main"}'
-  '{"repository":"NxNxmm/CPE334-Sec01-Team45","repository_id":"1098765432","ref":"refs/heads/main","environment":"","job_workflow_ref":"NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main"}'
-  '{"repository":"NxNxmm/CPE334-Sec01-Team45","repository_id":"1098765432","ref":"refs/heads/main","environment":"staging","job_workflow_ref":"NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main"}'
-  '{"repository":"NxNxmm/CPE334-Sec01-Team45","repository_id":"999999999","ref":"refs/heads/main","environment":"demo","job_workflow_ref":"NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main"}'
-  '{"repository":"NxNxmm/CPE334-Sec01-Team45","repository_id":"1098765432","ref":"refs/heads/main","environment":"demo","job_workflow_ref":"NxNxmm/CPE334-Sec01-Team45/.github/workflows/ci-docker.yml@refs/heads/main"}'
+  '{"sub":"repo:NxNxmm/CPE334-Sec01-Team45:environment:demo","actor":"NxNxmm","repository":"NxNxmm/CPE334-Sec01-Team45","repository_id":"1098765432","ref":"refs/heads/sprint-1-staging","environment":"demo","workflow_ref":"NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main"}'
+  '{"sub":"repo:NxNxmm/CPE334-Sec01-Team45:environment:demo","actor":"NxNxmm","repository":"NxNxmm/CPE334-Sec01-Team45","repository_id":"1098765432","ref":"refs/pull/35/merge","environment":"demo","workflow_ref":"NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main"}'
+  '{"sub":"repo:NxNxmm/CPE334-Sec01-Team45:ref:refs/heads/main","actor":"NxNxmm","repository":"NxNxmm/CPE334-Sec01-Team45","repository_id":"1098765432","ref":"refs/heads/main","environment":"","workflow_ref":"NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main"}'
+  '{"sub":"repo:NxNxmm/CPE334-Sec01-Team45:environment:staging","actor":"NxNxmm","repository":"NxNxmm/CPE334-Sec01-Team45","repository_id":"1098765432","ref":"refs/heads/main","environment":"staging","workflow_ref":"NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main"}'
+  '{"sub":"repo:NxNxmm/CPE334-Sec01-Team45:ref:refs/heads/main","actor":"NxNxmm","repository":"NxNxmm/CPE334-Sec01-Team45","repository_id":"1098765432","ref":"refs/heads/main","workflow_ref":"NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main"}'
+  '{"sub":"repo:NxNxmm/CPE334-Sec01-Team45:environment:demo","actor":"NxNxmm","repository":"NxNxmm/CPE334-Sec01-Team45","repository_id":"999999999","ref":"refs/heads/main","environment":"demo","workflow_ref":"NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main"}'
+  '{"sub":"repo:NxNxmm/CPE334-Sec01-Team45:environment:demo","actor":"NxNxmm","repository":"NxNxmm/CPE334-Sec01-Team45","repository_id":"1098765432","ref":"refs/heads/main","environment":"demo","workflow_ref":"NxNxmm/CPE334-Sec01-Team45/.github/workflows/ci-docker.yml@refs/heads/main"}'
+  '{"sub":"repo:NxNxmm/CPE334-Sec01-Team45:environment:demo","actor":"NxNxmm","repository":"NxNxmm/CPE334-Sec01-Team45","repository_id":"1098765432","ref":"refs/heads/main","environment":"demo","job_workflow_ref":"NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main"}'
 )
 
 for bad_claims in "${rejected_cases[@]}"; do
@@ -206,4 +224,4 @@ for bad_claims in "${rejected_cases[@]}"; do
   fi
 done
 
-echo 'PASS deploy/setup-wif.sh enforces repository_id/main/demo/deploy.yml, updates and verifies existing providers, rejects non-main and non-demo claims, and outputs all 8 demo environment variables.'
+echo 'PASS deploy/setup-wif.sh enforces repository_id/main/demo/workflow_ref, updates and verifies existing providers, rejects non-main and non-demo claims, and outputs all 8 demo environment variables.'

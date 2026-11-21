@@ -36,11 +36,11 @@ PYTHON_EXE="$(resolve_python)"
 
 DEPLOY_WORKFLOW_REF="${GITHUB_REPOSITORY}/${DEPLOY_WORKFLOW_PATH}@${DEPLOY_REF}"
 EXPECTED_ISSUER_URI="https://token.actions.githubusercontent.com"
-EXPECTED_ATTRIBUTE_MAPPING="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository,attribute.repository_id=assertion.repository_id,attribute.ref=assertion.ref,attribute.environment=assertion.environment,attribute.job_workflow_ref=assertion.job_workflow_ref"
+EXPECTED_ATTRIBUTE_MAPPING="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository,attribute.repository_id=assertion.repository_id,attribute.ref=assertion.ref,attribute.environment=assertion.environment,attribute.workflow_ref=assertion.workflow_ref"
 
 build_attribute_condition() {
   local repo_id="$1"
-  printf "assertion.repository == '%s' && assertion.repository_id == '%s' && assertion.ref == '%s' && assertion.environment == '%s' && assertion.job_workflow_ref == '%s'" \
+  printf "assertion.repository == '%s' && assertion.repository_id == '%s' && assertion.ref == '%s' && assertion.environment == '%s' && assertion.workflow_ref == '%s'" \
     "$GITHUB_REPOSITORY" "$repo_id" "$DEPLOY_REF" "$DEPLOY_ENVIRONMENT" "$DEPLOY_WORKFLOW_REF"
 }
 
@@ -56,6 +56,7 @@ if [[ "${1:-}" == "--evaluate-claims" ]]; then
   }
   expected_condition="$(build_attribute_condition "$GITHUB_REPOSITORY_ID")"
   CLAIMS_JSON="$claims_json" \
+  EXPECTED_ATTRIBUTE_MAPPING="$EXPECTED_ATTRIBUTE_MAPPING" \
   EXPECTED_REPOSITORY="$GITHUB_REPOSITORY" \
   EXPECTED_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
   EXPECTED_REF="$DEPLOY_REF" \
@@ -68,14 +69,26 @@ import os
 import sys
 
 claims = json.loads(os.environ["CLAIMS_JSON"])
+expected_mapping = dict(
+    pair.split("=", 1)
+    for pair in os.environ["EXPECTED_ATTRIBUTE_MAPPING"].split(",")
+)
+
+missing_mapped = []
+for target, expr in expected_mapping.items():
+    if expr.startswith("assertion."):
+        claim_key = expr.split(".", 1)[1]
+        if claim_key not in claims or claims[claim_key] is None:
+            missing_mapped.append(f"{target}<-{claim_key}")
+
 checks = [
-    ("repository", str(claims.get("repository", "")) == os.environ["EXPECTED_REPOSITORY"]),
-    ("repository_id", str(claims.get("repository_id", "")) == os.environ["EXPECTED_REPOSITORY_ID"]),
-    ("ref", str(claims.get("ref", "")) == os.environ["EXPECTED_REF"]),
-    ("environment", str(claims.get("environment", "")) == os.environ["EXPECTED_ENVIRONMENT"]),
-    ("job_workflow_ref", str(claims.get("job_workflow_ref", "")) == os.environ["EXPECTED_WORKFLOW_REF"]),
+    ("repository", claims.get("repository") == os.environ["EXPECTED_REPOSITORY"]),
+    ("repository_id", claims.get("repository_id") == os.environ["EXPECTED_REPOSITORY_ID"]),
+    ("ref", claims.get("ref") == os.environ["EXPECTED_REF"]),
+    ("environment", claims.get("environment") == os.environ["EXPECTED_ENVIRONMENT"]),
+    ("workflow_ref", claims.get("workflow_ref") == os.environ["EXPECTED_WORKFLOW_REF"]),
 ]
-failed = [name for name, ok in checks if not ok]
+failed = missing_mapped + [name for name, ok in checks if not ok]
 if failed:
     print(f"REJECTED: WIF claims failed policy check for: {', '.join(failed)}", file=sys.stderr)
     sys.exit(1)
