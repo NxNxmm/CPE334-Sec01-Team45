@@ -17,6 +17,15 @@ describe('Sprint 1 - Login UI Component Tests', () => {
       expect(screen.getByText(/local development credentials/i)).toBeInTheDocument();
     });
 
+    it('renders KMUTT department subtitle and lab lending hours policy note', () => {
+      render(<Login />);
+
+      expect(screen.getByText(/department of computer engineering · kmutt/i)).toBeInTheDocument();
+      expect(screen.getByRole('note', { name: /lab lending hours and quota/i })).toBeInTheDocument();
+      expect(screen.getByText(/mon–fri 08:30–16:30 \(cpe lab desk\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/up to 3 active requests per borrower/i)).toBeInTheDocument();
+    });
+
     it('shows loading state and disables inputs when submitting', async () => {
       // Mock delayed fetch response
       global.fetch = vi.fn().mockImplementation(
