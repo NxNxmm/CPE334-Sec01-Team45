@@ -17,13 +17,14 @@ describe('Sprint 1 - Login UI Component Tests', () => {
       expect(screen.getByText(/local development credentials/i)).toBeInTheDocument();
     });
 
-    it('renders KMUTT department subtitle and lab lending hours policy note', () => {
+    it('renders KMUTT department subtitle and SRS BR-04/BR-05 lending policy note', () => {
       render(<Login />);
 
       expect(screen.getByText(/department of computer engineering · kmutt/i)).toBeInTheDocument();
-      expect(screen.getByRole('note', { name: /lab lending hours and quota/i })).toBeInTheDocument();
-      expect(screen.getByText(/mon–fri 08:30–16:30 \(cpe lab desk\)/i)).toBeInTheDocument();
-      expect(screen.getByText(/up to 3 active requests per borrower/i)).toBeInTheDocument();
+      expect(screen.getByRole('note', { name: /borrowing policy and quota/i })).toBeInTheDocument();
+      expect(screen.getByText(/lending policy/i)).toBeInTheDocument();
+      expect(screen.getByText(/up to 3 pending requests and active loans combined/i)).toBeInTheDocument();
+      expect(screen.getByText(/7-day standard loan period/i)).toBeInTheDocument();
     });
 
     it('shows loading state and disables inputs when submitting', async () => {

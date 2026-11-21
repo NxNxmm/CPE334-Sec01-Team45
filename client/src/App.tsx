@@ -130,7 +130,7 @@ export default function App() {
         )}
       </main>
       <footer className="portal-footer py-3 px-3 px-md-4 text-center small">
-        EquipFlow · Department of Computer Engineering, KMUTT · CPE Lab Desk Hours: Mon–Fri 08:30–16:30
+        EquipFlow · Department of Computer Engineering, KMUTT · Up to 3 pending requests &amp; active loans combined · 7-day loan period
       </footer>
     </div>
   );

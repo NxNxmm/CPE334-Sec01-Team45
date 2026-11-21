@@ -140,10 +140,10 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           </button>
         </form>
 
-        <div className="login-policy-note mt-3" role="note" aria-label="Lab lending hours and quota">
-          <span className="login-policy-pill">Lab Hours</span>
+        <div className="login-policy-note mt-3" role="note" aria-label="Borrowing policy and quota">
+          <span className="login-policy-pill">Lending Policy</span>
           <span className="small">
-            Mon–Fri 08:30–16:30 (CPE Lab Desk) · Up to 3 active requests per borrower
+            Up to 3 pending requests and active loans combined · 7-day standard loan period
           </span>
         </div>
 
