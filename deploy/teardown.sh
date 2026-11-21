@@ -15,7 +15,9 @@ SQL_INSTANCE="${SQL_INSTANCE:-equipflow-pg}"
 CLOUD_RUN_SERVICE="${CLOUD_RUN_SERVICE:-equipflow}"
 CLOUD_RUN_MIGRATION_JOB="${CLOUD_RUN_MIGRATION_JOB:-equipflow-migrate}"
 RUNTIME_SA_NAME="${RUNTIME_SA_NAME:-equipflow-runner}"
+DEPLOYER_SA_NAME="${DEPLOYER_SA_NAME:-equipflow-deployer}"
 runtime_sa_email="${RUNTIME_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+deployer_sa_email="${DEPLOYER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 echo "Deleting Cloud Run service ${CLOUD_RUN_SERVICE}..."
 gcloud run services delete "$CLOUD_RUN_SERVICE" --project="$PROJECT_ID" --region="$REGION" --quiet || true
@@ -36,5 +38,8 @@ done
 
 echo "Deleting runtime service account ${runtime_sa_email}..."
 gcloud iam service-accounts delete "$runtime_sa_email" --project="$PROJECT_ID" --quiet || true
+
+echo "Deleting deployer service account ${deployer_sa_email}..."
+gcloud iam service-accounts delete "$deployer_sa_email" --project="$PROJECT_ID" --quiet || true
 
 echo "Teardown completed for project ${PROJECT_ID}."

@@ -81,9 +81,10 @@ jobs:
 
       - name: Verify deployment scripts and migration gate
         run: |
-          bash -n deploy/deploy.sh deploy/release.sh deploy/teardown.sh
+          bash -n deploy/deploy.sh deploy/release.sh deploy/setup-wif.sh deploy/teardown.sh
           bash deploy/tests/test-release-stub.sh
           bash deploy/tests/test-deploy-stub.sh
+          bash deploy/tests/test-wif-stub.sh
 
       - name: Verify production container runtime and health probes
         run: |
