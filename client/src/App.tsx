@@ -129,6 +129,9 @@ export default function App() {
           <MyRequests token={token!} onNavigateToCatalog={() => setCurrentTab('catalog')} />
         )}
       </main>
+      <footer className="portal-footer py-3 px-3 px-md-4 text-center small">
+        EquipFlow · Department of Computer Engineering, KMUTT · Up to 3 pending requests &amp; active loans combined · 7-day loan period
+      </footer>
     </div>
   );
 }
