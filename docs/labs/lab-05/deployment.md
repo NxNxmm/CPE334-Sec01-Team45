@@ -46,7 +46,30 @@ No secrets, passwords, or private keys are committed to the repository. Refer to
 
 ## 3. Reproducible Local PostgreSQL 16 Setup & Verification (`L5-1`)
 
-### 3.1 Start Local PostgreSQL 16 Instance
+### 3.1 Clean checkout and local runtime
+
+From a machine with Git, Node.js 22.12+ and Docker with Compose v2:
+
+```bash
+git clone https://github.com/NxNxmm/CPE334-Sec01-Team45.git
+cd CPE334-Sec01-Team45
+git switch --detach ee7306170b54736413086e2bd659f9a2b427a5ed
+cp .env.example .env
+# Set JWT_SECRET in .env to a random value for local use.
+docker compose config -q
+docker compose up --build --wait
+docker compose ps --all
+curl -fsS http://127.0.0.1:8080/api/health
+curl -fsS http://127.0.0.1:8080/api/ready
+docker compose exec -T app id -u
+docker compose logs --no-color migrate
+```
+
+Open the login page at `http://127.0.0.1:8080/` and use a local seed account. Compose creates the `postgres-data` volume, waits for PostgreSQL, and runs the migration and local seed before starting the app. The [container guide](containerization.md) covers port overrides and stopping the stack while preserving the volume.
+
+For host-side development and tests, stop the Compose stack with `docker compose down`, then use the PostgreSQL instance below with separate application and test databases.
+
+### 3.2 Start Local PostgreSQL 16 Instance
 
 ```bash
 docker run --name equipflow-pg-local \
@@ -55,16 +78,17 @@ docker run --name equipflow-pg-local \
   -e POSTGRES_DB=equipflow \
   -p 5432:5432 -d postgres:16-alpine
 
+until docker exec equipflow-pg-local pg_isready -U appuser -d equipflow; do sleep 1; done
 docker exec equipflow-pg-local psql -U appuser -d equipflow -c "CREATE DATABASE equipflow_test;"
 ```
 
-### 3.2 Configure Local Environment
+### 3.3 Configure Local Environment
 
 ```bash
 cp .env.example .env
 ```
 
-### 3.3 Install, Validate, Migrate, Seed, and Build
+### 3.4 Install, Validate, Migrate, Seed, and Build
 
 ```bash
 npm ci
@@ -75,20 +99,23 @@ npm run db:seed
 npm run build
 ```
 
-### 3.4 Run Full Automated Regression Suites (Against PostgreSQL 16)
+### 3.5 Run Full Automated Regression Suites (Against PostgreSQL 16)
 
 ```bash
 # Backend API, concurrency, auth, /api/health + /api/ready probes, test DB guard & seed checks (40 tests)
 npm test
 
-# Frontend UI component tests (15 tests)
+# Frontend UI component tests
 npm run test:client
 
 # End-to-End Playwright browser verification suite (4 scenarios)
+npx playwright install chromium
 npx playwright test
 ```
 
-### 3.5 Verified L5-1 Local Execution Evidence (PostgreSQL 16)
+Run `npm run dev` to start the Vite UI and Express API for development.
+
+### 3.6 Verified L5-1 Local Execution Evidence (PostgreSQL 16)
 
 ```text
 $ npm run db:migrate && npm run db:seed
@@ -157,6 +184,8 @@ The PR CI pipeline is defined in [`.github/workflows/ci-docker.yml`](../../../.g
 
 ---
 
+The [passing PR #37 job](https://github.com/NxNxmm/CPE334-Sec01-Team45/actions/runs/44890167910/job/136804048517) tested PR merge SHA `b03a7b4cb31c6bb13c3f2d8ce45beaa75b111ef0` and passed 40 server and 16 client tests. The reviewed feature head was `e1cff9d8e71ca86e8a598e41a5d3e3e951dc43a5`.
+
 ## 5. Cloud Run Provisioning & Release Procedure (`L5-4`–`L5-6`)
 
 ### 5.0 First-Time GCP Provisioning & Deployment (`L5-4`, `R-03`, `C-04`)
@@ -180,12 +209,12 @@ These defaults match [`deploy/deploy.sh`](../../../deploy/deploy.sh), [`deploy/r
 
 #### Running First-Time Deploy from Google Cloud Shell (`NxNxmm`)
 
-Run from a clean checkout of `feat/lab5-first-deploy` (or `sprint-1-staging` after merge) in **Google Cloud Shell**, where `gcloud`, `docker`, `python3`, and `openssl` are preinstalled:
+For initial provisioning, run from a clean checkout of `sprint-1-staging` in **Google Cloud Shell**, where `gcloud`, `docker`, `python3`, and `openssl` are preinstalled:
 
 ```bash
 git clone https://github.com/NxNxmm/CPE334-Sec01-Team45.git
 cd CPE334-Sec01-Team45
-git checkout feat/lab5-first-deploy
+git switch sprint-1-staging
 
 # Prompt for DEMO_USER_PASSWORD without saving it to shell history or Git
 read -s -p "DEMO_USER_PASSWORD: " DEMO_USER_PASSWORD; echo
@@ -231,6 +260,8 @@ After `deploy/deploy.sh` prints `SERVICE_URL` and `LATEST_REVISION` and passes `
 > ```
 
 #### Verified L5-4 / C-04 First-Deploy Evidence (2026-11-19 ICT)
+The [live borrower capture](../../evidence/lab-05/c04-live-borrower.png) shows the existing checkout. The [November 19 teammate review](https://github.com/NxNxmm/CPE334-Sec01-Team45/pull/33#pullrequestreview-5979521247) records the request, checkout, and role guard.
+
 - **Deployed Source SHA:** `ac9b8dd564caa300473612f205b8e72ffbe57ed0`
 - **Cloud Build Run:** `e4015d37-479f-48f8-b3b8-d28d1c41e4a5` (`STATUS: SUCCESS`, duration `3M5S`)
 - **Runtime Image Digest:** `asia-southeast1-docker.pkg.dev/cpe334-team45/equipflow/app@sha256:ddc3b8d1de0d7feb4f53e4d6f1880b8646116edc676c75ffdeb01fed501f0e83`
@@ -311,6 +342,7 @@ HTTP 403
   - Ruleset **`protect-main`** active on `main` requiring PR approval (`1` review, dismiss stale approvals), status check **`test-and-docker`**, and force-push protection.
   - Opened temporary demonstration PR **`#34`** (`https://github.com/NxNxmm/CPE334-Sec01-Team45/pull/34`, `test/prove-gate` -> `main`, label `lab5`) containing an intentional failing assertion in `server/tests/sprint-1/health.api.test.ts`.
   - Required check **`test-and-docker`** failed in GitHub Actions run **`https://github.com/NxNxmm/CPE334-Sec01-Team45/actions/runs/44601332891`** (`CI - Test & Docker` #10, duration `51s`, `Test Files: 1 failure, 4 passes`, `Test Results: 2 failures, 38 passes`, `AssertionError: expected 200 to be 500`).
+  - The failing job checked out PR merge SHA `3ee397df773b65cf22c2879cbe45debab562ba28`. The [active main ruleset](https://github.com/NxNxmm/CPE334-Sec01-Team45/rules/27666621) shows the required check and review.
   - Confirmed GitHub blocked merging on PR `#34` (`test-and-docker` failing + `1` approving review required), captured screenshot evidence for `C-02`, closed PR `#34` without merging, and deleted `test/prove-gate`.
 
 ```text
@@ -371,7 +403,7 @@ version: 1
 
 ### 5.2 Automated main deployment (`L5-6`)
 
-`.github/workflows/deploy.yml` is designed to deploy only after a push to `main`, which in this project should be a reviewed release PR from `sprint-1-staging`. Its `test` job reuses `ci-docker.yml`; the deploy job requires that job to pass before it authenticates through Workload Identity Federation, builds and pushes the `runtime` and `db-tools` targets tagged with the 40-character source SHA, resolves both immutable image digests, runs the migration job with the `db-tools` image, updates the service with the production `runtime` image, and performs read-only HTTP smoke checks. The distinct image targets are required because `npm prune --omit=dev` removes the Prisma CLI from `runtime`, while the migrations require Prisma CLI. A migration failure stops the workflow before service rollout. The optional manual rollback input must be a full SHA already present in Artifact Registry; rollback skips migrations and reuses that runtime image.
+`.github/workflows/deploy.yml` builds and deploys on a push to `main` or a manual dispatch on `main` with an empty `image_tag`. Normal releases start with a reviewed release PR from `sprint-1-staging`. Its `test` job reuses `ci-docker.yml`; the deploy job requires that job to pass before it authenticates through Workload Identity Federation, builds and pushes the `runtime` and `db-tools` targets tagged with the 40-character source SHA, resolves both immutable image digests, runs the migration job with the `db-tools` image, updates the service with the production `runtime` image, and performs read-only HTTP smoke checks. The distinct image targets are required because `npm prune --omit=dev` removes the Prisma CLI from `runtime`, while the migrations require Prisma CLI. A migration failure stops the workflow before service rollout. The optional manual rollback input must be a full SHA already present in Artifact Registry; rollback skips migrations and reuses that runtime image.
 
 The `demo` GitHub Environment must be configured by the project owner/team before enabling a release. Configure these **variables** there (values are project-specific and must match the resources created for `cpe334-team45`):
 
@@ -388,7 +420,21 @@ The `demo` GitHub Environment must be configured by the project owner/team befor
 
 The Cloud Run service and migration job must already reference the intended Secret Manager values and Cloud SQL instance from `L5-4`; the deploy workflow updates images only and does not create or change IAM, billing, databases, or secret values. Do not put credentials in workflow files or GitHub variables.
 
-The workflow smoke checks are read-only and use this application's routes: `/api/health`, `/api/ready`, and `/`. The workflow summary records the source SHA, image tag/digest, service URL, rollback mode, and successful smoke step. Release 1 (`#36`) verified the first automated end-to-end deployment; the second visible-change release (`L5-6` repeatability proof) is pending before closing `#26` for `C-06`.
+The workflow smoke checks are read-only and use this application's routes: `/api/health`, `/api/ready`, and `/`. The workflow log records the image tag and immutable registry digest, migration execution when applicable, traffic, revision, and smoke result. In a pinned dispatch, the run's source SHA identifies the workflow definition on `main`. Use the logged `IMAGE_TAG` to identify the application commit and the migration skip message to verify the pinned path.
+
+1. Link a `Lab 5` issue to a feature PR into `sprint-1-staging`. Get a teammate's review and a passing `test-and-docker` check.
+2. Open a release PR from `sprint-1-staging` to `main`. After review and required CI, merge it and wait for [Deploy EquipFlow to Cloud Run](https://github.com/NxNxmm/CPE334-Sec01-Team45/actions/workflows/deploy.yml).
+3. Open the deploy job. Match the full application SHA to the tag and registry digest it deployed. Check the migration job and smoke steps, then match the running revision in Cloud Run to the result. When the job reports an OCI index digest and the Console shows a platform manifest digest, use the build's exported manifests or Artifact Registry to verify both refer to the same image.
+4. For rollback or roll-forward, dispatch the workflow on `main` using the full SHA of the previously built image in `image_tag`. Check that the schema remains compatible and that migrations were skipped. Verify health, readiness and the affected user journey before dispatching the next image.
+
+```bash
+gcloud run services describe equipflow --project=cpe334-team45 --region=asia-southeast1 \
+  --format='yaml(status.url,status.traffic)'
+serving_revision=$(gcloud run services describe equipflow --project=cpe334-team45 --region=asia-southeast1 \
+  --format='json(status.traffic)' | jq -er '[.status.traffic[] | select(.percent == 100)] | .[0].revisionName')
+gcloud run revisions describe "$serving_revision" --project=cpe334-team45 \
+  --region=asia-southeast1 --format='yaml(metadata.name,spec.containers[0].image,status.imageDigest)'
+```
 
 #### Verified L5-6 / C-06 Automated Release Evidence (2026-11-21 ICT)
 - **Release 1 — First Automated Main Deployment (PR `#36`, Part of `#26`):**
@@ -401,8 +447,31 @@ The workflow smoke checks are read-only and use this application's routes: `/api
   - **Cloud Run Revision & Traffic:** `equipflow-00002-wnj` (`100%` traffic, `latestRevision: true`)
   - **Service URL & Smoke Checks:** `https://equipflow-ddqo5fpv2a-as.a.run.app` (`/api/health`, `/api/ready`, and `/` passed)
 
-**Current verification boundary (`L5-4` & `L5-5` completed; `L5-6` Release 1 verified / Release 2 pending; `L5-7` pending):**
-- **Completed (`L5-4` / `C-04`):** Required GCP APIs (`run.googleapis.com`, `sqladmin.googleapis.com`, `artifactregistry.googleapis.com`, `cloudbuild.googleapis.com`, `secretmanager.googleapis.com`, `iam.googleapis.com`, and `iamcredentials.googleapis.com`) are enabled on project `cpe334-team45`. Cloud SQL (`equipflow-pg`), Artifact Registry (`equipflow`), Secret Manager secrets, migration job (`equipflow-migrate`), and Cloud Run service (`equipflow`) are provisioned and verified live at `https://equipflow-ddqo5fpv2a-as.a.run.app` on revision `equipflow-00001-t44` (`100%` traffic) deployed from source SHA `ac9b8dd564caa300473612f205b8e72ffbe57ed0` (covering `/api/health`, `/api/ready`, `401`/`403` role guards, browser role boundary, and Borrower request for `CPE-OSC-001` -> Custodian checkout).
-- **Completed (`L5-5` `#25` / `C-02`):** Provisioned `equipflow-deployer@cpe334-team45.iam.gserviceaccount.com`, `github-pool` / `github-provider`, all 8 variables in the `demo` GitHub Environment, and activated `protect-main` on `main` (blocking failing PR `#34`, run `44601332891`, before closing `#34` without merging). On `2026-11-21 ICT` (from commit `3bb7dbc`), `bash deploy/setup-wif.sh` was re-executed in Google Cloud Shell on `cpe334-team45` (`906022478800`), and live `providers describe --format=json` plus `service-accounts get-iam-policy` confirmed `state: ACTIVE`, `attribute.workflow_ref`, `assertion.workflow_ref == 'NxNxmm/CPE334-Sec01-Team45/.github/workflows/deploy.yml@refs/heads/main'` (with zero `job_workflow_ref` mapping/condition remaining), and a single `roles/iam.workloadIdentityUser` binding for `attribute.repository_id/1455066360`. End-to-end GitHub Actions OIDC exchange from `.github/workflows/deploy.yml` was then proven live in `L5-6` Release 1 (`#36`).
-- **In Progress (`L5-6` `#26` / `C-06`):** Release 1 (`#36`, `e19ea5c`, run `44885217719`, `equipflow-migrate-5n7zv`, revision `equipflow-00002-wnj` `100%` traffic) is verified live; Release 2 (visible UI change adding the KMUTT subtitle, SRS `BR-04`/`BR-05` lending policy notice on Login, and matching portal footer via staging PR `#37` from `feat/lab5-visible-release` -> `sprint-1-staging`) is pending merge to `sprint-1-staging` and a separate reviewed `sprint-1-staging` -> `main` release PR to prove repeatability and capture the second revision/digest before closing `#26`.
-- **Pending (`L5-7` `#27` / `C-05`):** Verify synthetic domain-record persistence across Cloud Run restart and redeploy.
+- **Release 2 — KMUTT lending policy notice:** [Issue #26](https://github.com/NxNxmm/CPE334-Sec01-Team45/issues/26), [reviewed staging PR #37](https://github.com/NxNxmm/CPE334-Sec01-Team45/pull/37), [release PR #38](https://github.com/NxNxmm/CPE334-Sec01-Team45/pull/38), [deploy run 44890942789](https://github.com/NxNxmm/CPE334-Sec01-Team45/actions/runs/44890942789).
+  - Main commit `8217beff7d33b2fc7657c36824d4a22a0df6bb94`.
+  - Migration `equipflow-migrate-2mp4d` succeeded using `sha256:1cd67126d4a41301dacd788967e92708969d394d1a62c6f6d1de9d6b2e351352`.
+  - Runtime registry digest `sha256:e51b8318e3f3775b7c27e972c6826c9aca9c715661e17dc2f07a552a9563b39e` rolled out as `equipflow-00003-svx` at 100% traffic. The UI, health and database-readiness probes passed.
+  - A later [rebuild of the same SHA](https://github.com/NxNxmm/CPE334-Sec01-Team45/actions/runs/44903247574) produced runtime OCI index digest `sha256:ac724f44dd1b11f0f67dbbe81a697685b64a60c8966d59981a42e29555ac6cfa` and platform manifest digest `sha256:604e51553a794404a063f40bdbaa8d037ee94dd72c92a87a9a2b47ae65f3f7a0`. The [Nov 21 pinned roll-forward](https://github.com/NxNxmm/CPE334-Sec01-Team45/actions/runs/44904873536) used that rebuild and served it as `equipflow-00006-w4d`.
+
+## 6. Persistence across restart and redeploy (L5-7, C-05, R-04)
+
+The demo borrower created a request for `CPE-OSC-002` on November 21 at 19:15:07.470 ICT. The identifying note is `LAB5-C05-20261121T1912ICT` and its request ID is `cmwqdf5ji0001s60101l4203z`. The note was chosen before submission; the API's `createdAt` is authoritative for creation time.
+
+On November 22, we used the existing synthetic request as the baseline. In Cloud Run, **Redeploy → Deploy new revision** with no service configuration changes replaced the application instances on the same runtime image. Cloud SQL remained running. We refreshed **My Requests**, called `GET /api/v1/requests/my`, and checked `/api/health` and `/api/ready` at each checkpoint. The checkpoint table uses Cloud Run's serving platform digest, with the registry digest linked in the deploy log.
+
+| Checkpoint and API capture time | Serving revision (100%) | Cloud Run platform digest | Rollout source | Evidence |
+| --- | --- | --- | --- | --- |
+| Before restart · 19:22:39 ICT | `equipflow-00006-w4d` | `sha256:604e51553a794404a063f40bdbaa8d037ee94dd72c92a87a9a2b47ae65f3f7a0` | [Deploy run 44904873536](https://github.com/NxNxmm/CPE334-Sec01-Team45/actions/runs/44904873536/job/136848190995) | [Figure C-05.1](../../evidence/lab-05/l5-7/01-before.png) · [API capture](../../evidence/lab-05/l5-7/01-before.json) |
+| After same-image restart · 19:28:20 ICT | `equipflow-00007-ns6` | `sha256:604e51553a794404a063f40bdbaa8d037ee94dd72c92a87a9a2b47ae65f3f7a0` | [Cloud Run revision history](https://console.cloud.google.com/run/detail/asia-southeast1/equipflow/revisions?project=cpe334-team45) | [Figure C-05.2](../../evidence/lab-05/l5-7/02-after-restart.png) · [API capture](../../evidence/lab-05/l5-7/02-after-restart.json) |
+| After pinned rollback · 19:32:04 ICT | `equipflow-00008-qhg` | `sha256:63f3313f0da6d2bde90576eed25120fa889e2cf50a5da895a03c53c13cb353b1` | [Deploy run 45022560867](https://github.com/NxNxmm/CPE334-Sec01-Team45/actions/runs/45022560867/job/137208488447) | [Figure C-05.3](../../evidence/lab-05/l5-7/03-after-rollback.png) · [API capture](../../evidence/lab-05/l5-7/03-after-rollback.json) |
+| After pinned roll-forward · 19:34:20 ICT | `equipflow-00009-kns` | `sha256:604e51553a794404a063f40bdbaa8d037ee94dd72c92a87a9a2b47ae65f3f7a0` | [Deploy run 45022823168](https://github.com/NxNxmm/CPE334-Sec01-Team45/actions/runs/45022823168/job/137209259668) | [Figure C-05.4](../../evidence/lab-05/l5-7/04-after-roll-forward.png) · [API capture](../../evidence/lab-05/l5-7/04-after-roll-forward.json) |
+
+C-05 passed. The full API record matched at all four checkpoints, including request ID, asset tag, creation timestamp, note, and `PENDING` status. The request was also visible in each refreshed My Requests capture. Both pinned deployments skipped migrations and passed smoke checks. Release 2 was restored to 100% traffic on `equipflow-00009-kns`, and its KMUTT Lending Policy was visible on the sign-in page and in the signed-in portal.
+
+The [C-03 command output](../../evidence/lab-05/c03-clean-clone.txt) records the clean staging build and PostgreSQL connection. The [Lab 5 release evidence](#verified-l5-6--c-06-automated-release-evidence-2026-11-21-ict) records the original Release 2 rollout.
+
+## 7. Lab 5 deliverables and LEB2 (L5-8)
+
+The [Lab 5 PDF](../../submissions/lab5_sec1_TH-045_P2.pdf) contains Answer Parts 0–4 and the C-01–C-06 evidence index. [Issue #28](https://github.com/NxNxmm/CPE334-Sec01-Team45/issues/28) tracks teammate review.
+
+On November 22, LEB2 showed team `TH-045_P2` as unsubmitted, with **Submit** available and a deadline of **November 22, 2026 at 23:59 ICT**. The handout lists November 15. [LEB2 Lab 5 assignment](https://app.leb2.org/class/1582970/activity/23633752).
