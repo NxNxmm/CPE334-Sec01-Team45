@@ -462,3 +462,16 @@ The [L5-7 persistence report](https://github.com/NxNxmm/CPE334-Sec01-Team45/blob
 The [Lab 5 PDF](../../submissions/lab5_sec1_TH-045_P2.pdf) contains Answer Parts 0–4 and the C-01–C-06 evidence index. [Issue #28](https://github.com/NxNxmm/CPE334-Sec01-Team45/issues/28) tracks teammate review.
 
 On November 22, LEB2 showed team `TH-045_P2` as unsubmitted, with **Submit** available and a deadline of **November 22, 2026 at 23:59 ICT**. The handout lists November 15. [LEB2 Lab 5 assignment](https://app.leb2.org/class/1582970/activity/23633752).
+
+#### PDF figure register
+
+The submission PDF has 16 numbered figures. The C-01, C-02, C-03, infrastructure, and release graphics are labeled evidence summaries and link to their source runs or files. C-04 and C-05 include the team's live-app screenshots.
+
+| Figures | Check | Evidence |
+| --- | --- | --- |
+| 1 | C-01 passing `test-and-docker` | [CI run 44890167910](https://github.com/NxNxmm/CPE334-Sec01-Team45/actions/runs/44890167910) · [figure](../../evidence/lab-05/l5-8/01-c01-ci-success.png) |
+| 2–3 | C-02 active ruleset and blocked failing PR | [Ruleset](https://github.com/NxNxmm/CPE334-Sec01-Team45/rules/27666621) · [PR #34](https://github.com/NxNxmm/CPE334-Sec01-Team45/pull/34) · [figure 2](../../evidence/lab-05/l5-8/02-c02-ruleset.png) · [figure 3](../../evidence/lab-05/l5-8/03-c02-merge-gate.png) |
+| 4–5 | C-03 clean clone and secret sources | [Compose output](../../evidence/lab-05/c03-clean-clone.txt) · [figure 4](../../evidence/lab-05/l5-8/04-c03-compose.png) · [figure 5](../../evidence/lab-05/l5-8/05-c03-env-secrets.png) |
+| 6–10 | C-04 cloud resources, smoke checks, role guard and borrower UI | [Figure 6](../../evidence/lab-05/l5-8/06-c04-gcp-architecture.png) · [figure 7](../../evidence/lab-05/l5-8/07-c04-probes.png) · [figure 8](../../evidence/lab-05/l5-8/08-c04-role-guard.png) · [policy screenshot](../../evidence/lab-05/l5-8/11-c04-live-policy.png) · [borrower screenshot](../../evidence/lab-05/c04-live-borrower.png) |
+| 11–14 | C-05 same request at all four checkpoints | [L5-7 report](https://github.com/NxNxmm/CPE334-Sec01-Team45/blob/d0c8ef919b515363c908056ada576d5c4186190c/docs/labs/lab-05/persistence.md) · [before](../../evidence/lab-05/l5-8/12-c05-checkpoint-1.png) · [after restart](../../evidence/lab-05/l5-8/13-c05-checkpoint-2.png) · [after rollback](../../evidence/lab-05/l5-8/14-c05-checkpoint-3.png) · [after roll-forward](../../evidence/lab-05/l5-8/15-c05-checkpoint-4.png) |
+| 15–16 | C-06 reviewed release and final serving image | [Release run 44890942789](https://github.com/NxNxmm/CPE334-Sec01-Team45/actions/runs/44890942789) · [figure 15](../../evidence/lab-05/l5-8/09-c06-release-pipeline.png) · [figure 16](../../evidence/lab-05/l5-8/10-c06-serving-image.png) |
