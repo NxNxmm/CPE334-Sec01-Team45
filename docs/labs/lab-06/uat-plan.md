@@ -147,32 +147,57 @@ Every execution pass uses a unique monotonic **`Run ID`** (`R01` for initial Par
 
 ---
 
-### 3.4 Deterministic Reset, Partial-Run Recovery & Stop Conditions Protocol
+### 3.4 Deterministic Run-Scoped Reset, Partial-Run Recovery & Stop Conditions Protocol
 
-Because Sprint 1 excludes equipment return (`FR-17` / `F-05`) and request cancellation (`FR-12`), completing `UAT-EF-01` leaves **`CPE-RPI-001`** in `CHECKED_OUT` status (or `RESERVED` if a run is interrupted after Step 6 before Custodian checkout in Step 10) and leaves `BORROWER_FREE` at `2 / 3` active quota. Whenever a reset is required between runs or prior to Part D retesting, Product Team `TH-045_P2` executes the deterministic reset procedure below:
+Because Sprint 1 excludes equipment return (`FR-17` / `F-05`) and request cancellation (`FR-12`), completing `UAT-EF-01` leaves **`CPE-RPI-001`** in `CHECKED_OUT` status (or `RESERVED` if a run is interrupted after Step 6 before Custodian checkout in Step 10) and leaves `BORROWER_FREE` at `2 / 3` active quota. If a reset is required after `UAT-EF-06` (or after an interrupted run) for an additional execution pass or Part D retest, Product Team `TH-045_P2` executes the fail-closed, exact-ID transactional reset procedure below:
 
-1. **Reset Owner & Confirmed Coordination Window:**
-   - **Primary Reset Owner:** `Norawit Mahaprom` (`@NxNxmm`, `67070501026`, GCP Project Owner on `cpe334-team45`).
-   - **Backup & Verification Owner:** `Pawarisa Thongchua` (`@itspxsh`, `67070501032`).
-   - **Confirmed Reset Window & Turnaround:** Coordinated live via the shared `TH-045_P2 <-> TH-017` team chat during scheduled UAT windows (`09:00–23:00 ICT`), with an agreed turnaround of **$\le 15$ minutes** from reset request to verified readiness confirmation.
-2. **Scoped Reset Procedure (Handling Both Completed Checkouts and Partial Reservations):**
-   The Reset Owner executes a scoped transactional cleanup targeting **only** records created for `seed_item_cpe_rpi_001` (`CPE-RPI-001`) by `BORROWER_FREE` (`seed_user_borrower_2`):
-   - **Step A (Delete UAT Loan if Checkout Completed):** Delete from `Loan` where `itemId = 'seed_item_cpe_rpi_001'` and `borrowerId = 'seed_user_borrower_2'` (or `request.requestNote LIKE 'UAT-TH017-%'`).
-   - **Step B (Delete UAT BorrowRequest — Covers Both `APPROVED` Full Run and `PENDING` Partial Reservation):** Delete from `BorrowRequest` where `itemId = 'seed_item_cpe_rpi_001'` and `borrowerId = 'seed_user_borrower_2'` (or `requestNote LIKE 'UAT-TH017-%'`).
-   - **Step C (Restore Designated Asset Status):** Update `EquipmentItem` where `id = 'seed_item_cpe_rpi_001'` (`CPE-RPI-001`) setting `status = 'AVAILABLE'`.
-3. **Retained Fixtures (Never Modified or Deleted During Any Reset):**
+1. **Reset Ownership, Dual Confirmation & Coordination Timing:**
+   - **Primary Reset Executor:** `Norawit Mahaprom` (`@NxNxmm`, `67070501026`, GCP Project Owner on `cpe334-team45`).
+   - **Mandatory Co-Reviewer & Verifier:** `Pawarisa Thongchua` (`@itspxsh`, `67070501032`).
+   - **On-Demand Scheduling (No Pre-Assumed Window):** No reset window or turnaround SLA is assumed prior to handoff. If Team `TH-017` requires a reset for a re-run or Part D retest, both teams will mutually agree on a quiet maintenance window in the `TH-045_P2 <-> TH-017` coordination chat so no tester session is active during the reset.
+2. **Pre-Reset Candidate Inspection & Dual Product-Owner Sign-Off (Fail-Closed Selection Rule):**
+   Cleanup is strictly restricted to the **exact `<targetRequestId>` (and `<targetLoanId>`, if Step 10 checkout completed) captured for one specific `Run ID` (`R01`, `R02`, ...)**. Broad predicates matching only `(itemId, borrowerId)` or `OR` wildcards are strictly prohibited. Before any write transaction, `@NxNxmm` and `@itspxsh` run a read-only inspection query and must both confirm that the candidate row(s) satisfy **every conjunction (`AND`) guard** below:
+   - **Pre-Reset Retained-Fixture Snapshot:** All retained fixtures listed in Item 4 below match their exact preflight IDs and statuses.
+   - **Exact Request Conjunction Guard (`BorrowRequest`):**
+     - `id === <targetRequestId>` *(exact captured primary key for the single `Run ID`; must NOT be in the retained request ID set `['cmwqdf5ji0001s60101l4203z', 'cmwnl9ftz0001s601wk54wtfz', 'cmwns2yog0001s6014rng8e68', 'seed_request_checked_out']`)*
+     - `AND borrowerId === 'seed_user_borrower_2'` (`BORROWER_FREE`)
+     - `AND itemId === 'seed_item_cpe_rpi_001'` (`CPE-RPI-001`)
+     - `AND createdAt > '2026-11-23T14:09:35.913Z'` *(strictly after the baseline preflight capture timestamp)*
+     - `AND requestNote === 'UAT-TH017-<RUN_ID>-REQ: Raspberry Pi 4B embedded lab verification'` *(exact per-run synthetic note match)*
+   - **Exact Loan Conjunction Guard (`Loan`, when resetting a completed checkout run):**
+     - `id === <targetLoanId>` *(exact captured primary key; must NOT be in the retained loan ID set `['cmwns3i0h0003s601a249sjb7', 'seed_loan_checked_out']`)*
+     - `AND requestId === <targetRequestId>`
+     - `AND borrowerId === 'seed_user_borrower_2'`
+     - `AND itemId === 'seed_item_cpe_rpi_001'`
+     - `AND checkedOutAt > '2026-11-23T14:09:35.913Z'`
+     - `AND checkoutNotes === 'UAT-TH017-<RUN_ID>-CHK: Verified student ID 67070501002; handed over CPE-RPI-001.'`
+   - Both `@NxNxmm` and `@itspxsh` review the candidate row output and explicitly confirm `<targetRequestId>` (and `<targetLoanId>`, or `loanCount === 0` for an interrupted partial run) before proceeding to Step 3. If any field does not match, reset aborts immediately.
+3. **Atomic Transactional Cleanup (`prisma.$transaction` / `BEGIN ... COMMIT`):**
+   Inside a single database transaction that rolls back automatically on any assertion failure:
+   - **Case 3A — Completed Checkout Run (`<targetLoanId>` present):**
+     1. Assert the candidate `BorrowRequest` has `status === 'APPROVED'` and the candidate `Loan` has `status === 'ACTIVE'`.
+     2. Delete from `Loan` where the full Exact Loan Conjunction Guard holds (`id = <targetLoanId> AND requestId = <targetRequestId> AND borrowerId = 'seed_user_borrower_2' AND itemId = 'seed_item_cpe_rpi_001'`), and assert `deletedLoanCount === 1`.
+     3. Delete from `BorrowRequest` where the full Exact Request Conjunction Guard holds (`id = <targetRequestId> AND borrowerId = 'seed_user_borrower_2' AND itemId = 'seed_item_cpe_rpi_001'`), and assert `deletedRequestCount === 1`.
+   - **Case 3B — Interrupted Partial Reservation Run (`<targetRequestId>` present in `PENDING`, no `Loan` created):**
+     1. Query `Loan` where `requestId = <targetRequestId>` and assert `count === 0`, and assert the candidate `BorrowRequest` has `status === 'PENDING'` and item `seed_item_cpe_rpi_001` has `status === 'RESERVED'`.
+     2. Delete from `BorrowRequest` where the full Exact Request Conjunction Guard holds (`id = <targetRequestId> AND status = 'PENDING' AND borrowerId = 'seed_user_borrower_2' AND itemId = 'seed_item_cpe_rpi_001'`), and assert `deletedRequestCount === 1`.
+   - **Step 3C — Guarded Restoration of `CPE-RPI-001` to `AVAILABLE`:**
+     1. Still inside the same transaction, count remaining `BorrowRequest` rows where `itemId = 'seed_item_cpe_rpi_001' AND status = 'PENDING'` and remaining `Loan` rows where `itemId = 'seed_item_cpe_rpi_001' AND status = 'ACTIVE'`.
+     2. **Fail-Closed Check:** Assert **both counts equal `0`** (confirming no other reservation or active loan exists for `CPE-RPI-001`). If either count is non-zero, `ROLLBACK` the entire transaction and stop.
+     3. Update `EquipmentItem` where `id = 'seed_item_cpe_rpi_001' AND status IN ('RESERVED', 'CHECKED_OUT')` setting `status = 'AVAILABLE'`, and assert `updatedItemCount === 1` before `COMMIT`.
+4. **Retained Fixtures Verified Before AND After Every Reset (Never Modified or Deleted):**
    - `CPE-OSC-002` (`seed_item_cpe_osc_002`, `RESERVED`) and its protected Lab 5 `C-05` pending request `cmwqdf5ji0001s60101l4203z` (`LAB5-C05-20261121T1912ICT`, `PENDING`, `createdAt: 2026-11-21T12:15:07.470Z`).
    - `CPE-FPG-001` (`seed_item_cpe_fpg_001`, `RESERVED`) and `BORROWER_FULL`'s second pending request `cmwnl9ftz0001s601wk54wtfz` (`testing kub`, `PENDING`).
    - `CPE-OSC-001` (`seed_item_cpe_osc_001`, `CHECKED_OUT`) and `BORROWER_FULL`'s active loan `cmwns3i0h0003s601a249sjb7` + approved request `cmwns2yog0001s6014rng8e68`.
    - `CPE-RPI-002` (`seed_item_cpe_rpi_002`, `CHECKED_OUT`) and `BORROWER_FREE`'s seeded active loan `seed_loan_checked_out` + approved request `seed_request_checked_out`.
    - `CPE-LOG-001` (`seed_item_cpe_log_001`, `MAINTENANCE`).
-4. **Post-Reset Readiness Check (Mandatory Before Resuming UAT):**
-   Immediately after reset, the Reset Owner re-runs the read-only preflight verification and confirms all four invariants before notifying Team `TH-017` to proceed with the next `Run ID`:
-   - `CPE-RPI-001` (`seed_item_cpe_rpi_001`) status is `"AVAILABLE"`.
-   - `BORROWER_FULL` active quota is `3 / 3` (`pendingRequestsCount: 2`, `activeLoansCount: 1`).
-   - `BORROWER_FREE` active quota is `1 / 3` (`pendingRequestsCount: 0`, `activeLoansCount: 1` on `CPE-RPI-002`).
-   - Protected Lab 5 record `cmwqdf5ji0001s60101l4203z` (`CPE-OSC-002`, `LAB5-C05-20261121T1912ICT`) is `"PENDING"` and `CPE-OSC-002` is `"RESERVED"`.
-5. **Explicit UAT Stop Conditions:**
+5. **Post-Reset Readiness Verification (Mandatory Before Resuming UAT with Next `Run ID`):**
+   Immediately after the reset transaction commits, `@NxNxmm` and `@itspxsh` re-run the sanitized read-only preflight verification and confirm all four invariants match the baseline [`01-preflight-equipflow-00009-kns.json`](../../evidence/lab-06/l6-1/01-preflight-equipflow-00009-kns.json) before notifying Team `TH-017` to start the next `Run ID`:
+   - `CPE-RPI-001` (`seed_item_cpe_rpi_001`) status is `"AVAILABLE"`, and all 6 catalog items match the §3.2.2 inventory table.
+   - `BORROWER_FULL` active quota is `3 / 3` (`pendingRequestsCount: 2`, `activeLoansCount: 1`, `requests.length: 3`).
+   - `BORROWER_FREE` active quota is `1 / 3` (`pendingRequestsCount: 0`, `activeLoansCount: 1` on `CPE-RPI-002`, `requests.length: 1` on `seed_request_checked_out`).
+   - Protected Lab 5 record `cmwqdf5ji0001s60101l4203z` (`CPE-OSC-002`, `LAB5-C05-20261121T1912ICT`) remains `"PENDING"` and `CPE-OSC-002` remains `"RESERVED"`.
+6. **Explicit UAT Stop Conditions:**
    Team `TH-017` must stop execution immediately, mark any unexecuted dependent case as `BLOCKED`, and notify Team `TH-045_P2` if any of the following occur:
    - `GET /api/health` or `GET /api/ready` returns non-`200`.
    - Before `UAT-EF-02` or `UAT-EF-01`, `CPE-RPI-001` is not `AVAILABLE`, `BORROWER_FULL` is not at `3 / 3`, or `BORROWER_FREE` is not at `1 / 3`.
