@@ -1,0 +1,218 @@
+{
+  "capturedAtUtc": "2026-11-23T14:09:35.913Z",
+  "capturedAtIct": "2026-11-23T21:09:35+07:00",
+  "serviceUrl": "https://equipflow-ddqo5fpv2a-as.a.run.app",
+  "revision": "equipflow-00009-kns",
+  "releaseCommit": "8217beff7d33b2fc7657c36824d4a22a0df6bb94",
+  "probes": {
+    "health": {
+      "status": "ok",
+      "service": "equipflow-api"
+    },
+    "ready": {
+      "status": "ready",
+      "service": "equipflow-api",
+      "db": "connected"
+    }
+  },
+  "designatedAvailableAsset": {
+    "id": "seed_item_cpe_rpi_001",
+    "assetTag": "CPE-RPI-001",
+    "name": "Raspberry Pi 4 Model B 4GB",
+    "category": "Microcontrollers",
+    "modelNumber": "RPI4-4GB",
+    "serialNumber": "RPI4-4GB-001",
+    "condition": "GOOD",
+    "status": "AVAILABLE"
+  },
+  "inventory": [
+    {
+      "id": "seed_item_cpe_fpg_001",
+      "assetTag": "CPE-FPG-001",
+      "name": "Terasic DE10-Lite FPGA Board",
+      "category": "FPGA",
+      "modelNumber": "DE10-Lite",
+      "condition": "GOOD",
+      "status": "RESERVED"
+    },
+    {
+      "id": "seed_item_cpe_log_001",
+      "assetTag": "CPE-LOG-001",
+      "name": "Saleae Logic 8 USB Analyzer",
+      "category": "Measurement",
+      "modelNumber": "Logic 8",
+      "condition": "GOOD",
+      "status": "MAINTENANCE"
+    },
+    {
+      "id": "seed_item_cpe_osc_001",
+      "assetTag": "CPE-OSC-001",
+      "name": "Rigol DS1054Z Digital Oscilloscope",
+      "category": "Measurement",
+      "modelNumber": "DS1054Z",
+      "condition": "GOOD",
+      "status": "CHECKED_OUT"
+    },
+    {
+      "id": "seed_item_cpe_osc_002",
+      "assetTag": "CPE-OSC-002",
+      "name": "Keysight InfiniiVision DSOX1204A",
+      "category": "Measurement",
+      "modelNumber": "DSOX1204A",
+      "condition": "GOOD",
+      "status": "RESERVED"
+    },
+    {
+      "id": "seed_item_cpe_rpi_001",
+      "assetTag": "CPE-RPI-001",
+      "name": "Raspberry Pi 4 Model B 4GB",
+      "category": "Microcontrollers",
+      "modelNumber": "RPI4-4GB",
+      "condition": "GOOD",
+      "status": "AVAILABLE"
+    },
+    {
+      "id": "seed_item_cpe_rpi_002",
+      "assetTag": "CPE-RPI-002",
+      "name": "Raspberry Pi 4 Model B 8GB",
+      "category": "Microcontrollers",
+      "modelNumber": "RPI4-8GB",
+      "condition": "GOOD",
+      "status": "CHECKED_OUT"
+    }
+  ],
+  "accounts": {
+    "BORROWER_FULL": {
+      "role": "BORROWER",
+      "studentOrStaffId": "67070501001",
+      "fullName": "Student Borrower One",
+      "quota": {
+        "activeQuota": 3,
+        "maxQuota": 3,
+        "pendingRequestsCount": 2,
+        "activeLoansCount": 1
+      },
+      "activeQuota": {
+        "current": 3,
+        "maximum": 3
+      },
+      "activeLoans": [
+        {
+          "id": "cmwns3i0h0003s601a249sjb7",
+          "itemId": "seed_item_cpe_osc_001",
+          "assetTag": "CPE-OSC-001",
+          "status": "ACTIVE",
+          "checkedOutAt": "2026-11-19T16:42:39.472Z",
+          "dueDate": "2026-11-26T16:42:39.472Z"
+        }
+      ],
+      "requests": [
+        {
+          "id": "cmwqdf5ji0001s60101l4203z",
+          "itemId": "seed_item_cpe_osc_002",
+          "assetTag": "CPE-OSC-002",
+          "status": "PENDING",
+          "createdAt": "2026-11-21T12:15:07.470Z",
+          "requestNote": "LAB5-C05-20261121T1912ICT"
+        },
+        {
+          "id": "cmwns2yog0001s6014rng8e68",
+          "itemId": "seed_item_cpe_osc_001",
+          "assetTag": "CPE-OSC-001",
+          "status": "APPROVED",
+          "createdAt": "2026-11-19T16:42:14.416Z",
+          "requestNote": "Lab 5 C-04 deployment verification"
+        },
+        {
+          "id": "cmwnl9ftz0001s601wk54wtfz",
+          "itemId": "seed_item_cpe_fpg_001",
+          "assetTag": "CPE-FPG-001",
+          "status": "PENDING",
+          "createdAt": "2026-11-19T13:31:19.271Z",
+          "requestNote": "testing kub"
+        }
+      ],
+      "sessionCleanedUp": true
+    },
+    "BORROWER_FREE": {
+      "role": "BORROWER",
+      "studentOrStaffId": "67070501002",
+      "fullName": "Student Borrower Two",
+      "quota": {
+        "activeQuota": 1,
+        "maxQuota": 3,
+        "pendingRequestsCount": 0,
+        "activeLoansCount": 1
+      },
+      "activeQuota": {
+        "current": 1,
+        "maximum": 3
+      },
+      "activeLoans": [
+        {
+          "id": "seed_loan_checked_out",
+          "itemId": "seed_item_cpe_rpi_002",
+          "assetTag": "CPE-RPI-002",
+          "status": "ACTIVE",
+          "checkedOutAt": "2026-11-12T00:00:00.000Z",
+          "dueDate": "2026-11-19T00:00:00.000Z"
+        }
+      ],
+      "requests": [
+        {
+          "id": "seed_request_checked_out",
+          "itemId": "seed_item_cpe_rpi_002",
+          "assetTag": "CPE-RPI-002",
+          "status": "APPROVED",
+          "createdAt": "2026-11-19T13:20:55.853Z",
+          "requestNote": "Deterministic sample checkout."
+        }
+      ],
+      "sessionCleanedUp": true
+    },
+    "CUSTODIAN_STAFF": {
+      "role": "CUSTODIAN",
+      "studentOrStaffId": "STAFF-001",
+      "fullName": "CPE Lab Custodian",
+      "pendingQueueCount": 2,
+      "pendingQueueItems": [
+        {
+          "requestId": "cmwnl9ftz0001s601wk54wtfz",
+          "assetTag": "CPE-FPG-001",
+          "itemStatus": "RESERVED",
+          "borrowerIdTag": "67070501001",
+          "createdAt": "2026-11-19T13:31:19.271Z",
+          "requestNote": "testing kub"
+        },
+        {
+          "requestId": "cmwqdf5ji0001s60101l4203z",
+          "assetTag": "CPE-OSC-002",
+          "itemStatus": "RESERVED",
+          "borrowerIdTag": "67070501001",
+          "createdAt": "2026-11-21T12:15:07.470Z",
+          "requestNote": "LAB5-C05-20261121T1912ICT"
+        }
+      ],
+      "activeLoansCount": 2,
+      "activeLoansItems": [
+        {
+          "loanId": "seed_loan_checked_out",
+          "assetTag": "CPE-RPI-002",
+          "borrowerIdTag": "67070501002",
+          "custodianIdTag": "STAFF-001",
+          "checkedOutAt": "2026-11-12T00:00:00.000Z",
+          "dueDate": "2026-11-19T00:00:00.000Z"
+        },
+        {
+          "loanId": "cmwns3i0h0003s601a249sjb7",
+          "assetTag": "CPE-OSC-001",
+          "borrowerIdTag": "67070501001",
+          "custodianIdTag": "STAFF-001",
+          "checkedOutAt": "2026-11-19T16:42:39.472Z",
+          "dueDate": "2026-11-26T16:42:39.472Z"
+        }
+      ],
+      "sessionCleanedUp": true
+    }
+  }
+}
