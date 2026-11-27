@@ -3,12 +3,13 @@
 **Course:** CPE 334 Software Engineering (Semester 1 / Year 3)  
 **Assignment:** Lab 6 — Independent User Acceptance Testing and Defect Management (Part D: Defect Resolution)  
 **Document ID:** `DEFECT-RESOLUTION-SPRINT-01`  
-**Version:** `1.0.0`  
-**Tracking Issue:** [Issue #45 (`[Lab 6] L6-4: Implement defect fixes with RED/GREEN tests and PR review (Part D)`)](https://github.com/NxNxmm/CPE334-Sec01-Team45/issues/45)  
-**Working Branch:** `fix/lab6-def-ef-01-02` *(branched from `sprint-1-staging` at `4e85a137ff2162e3225ccbfcfa244bca30902fcc`)*  
+**Version:** `1.0.1` *(Fixed L6-4 Fix PR reference to `PR #51`, linked dedicated defect Issues `#52` & `#53`, and recorded `RED`/`GREEN` commit SHAs)*  
+**Tracking Issues:** [Issue #45 (`L6-4`)](https://github.com/NxNxmm/CPE334-Sec01-Team45/issues/45) · [Issue #52 (`DEF-EF-01`)](https://github.com/NxNxmm/CPE334-Sec01-Team45/issues/52) · [Issue #53 (`DEF-EF-02`)](https://github.com/NxNxmm/CPE334-Sec01-Team45/issues/53)  
+**L6-4 Fix Pull Request:** [PR `#51`](https://github.com/NxNxmm/CPE334-Sec01-Team45/pull/51) (`fix/lab6-def-ef-01-02 -> sprint-1-staging`)  
+**Working Branch & Commits:** `fix/lab6-def-ef-01-02` *(branched from `sprint-1-staging` at `4e85a137ff2162e3225ccbfcfa244bca30902fcc`; `RED` test commit: `085ac7b815e6ddb544d0eb5c9d9c7fa86d138e71`; `GREEN` fix commit: `7ca93dfc3e0aafae8148e56843f7dd87ba7ced5d`)*  
 **Team Members (`TH-045_P2` — EquipFlow):** `Norawit Mahaprom` (`67070501026` · `@NxNxmm`) & `Pawarisa Thongchua` (`67070501032` · `@itspxsh`)  
 **Collaboration Mode:** **Joint Pair Resolution, Regression Testing & PR Review (`Handout §3.4`)**  
-**Resolved Defects:** `DEF-EF-01` (`Minor`, `UI-SPEC-SPRINT-01 §3.1`, `STS E2E-01-03`) and `DEF-EF-02` (`Minor`, `FR-10`, `AC-REQ-05`, `UI-01-07`) — accepted in [`defect-triage.md`](./defect-triage.md) from Team `TH-017`'s `Run ID: R01` UAT report against Cloud Run revision `equipflow-00009-kns`.
+**Resolved Defects:** `DEF-EF-01` ([`#52`](https://github.com/NxNxmm/CPE334-Sec01-Team45/issues/52), `Minor`, `UI-SPEC-SPRINT-01 §3.1`, `STS E2E-01-03`) and `DEF-EF-02` ([`#53`](https://github.com/NxNxmm/CPE334-Sec01-Team45/issues/53), `Minor`, `FR-10`, `AC-REQ-05`, `UI-01-07`) — accepted in [`defect-triage.md`](./defect-triage.md) from Team `TH-017`'s `Run ID: R01` UAT report against Cloud Run revision `equipflow-00009-kns`.
 
 ---
 
@@ -142,12 +143,12 @@ dist/assets/index-DUIxegCD.js   170.65 kB │ gzip: 53.05 kB
 
 - Zero server/API or Prisma schema files were modified in this fix branch (`fix/lab6-def-ef-01-02`).
 - Local execution of `npm test` failed during Vitest global setup with `P1001: Can't reach database server at localhost:5433` because PostgreSQL was not running locally in this session.
-- Full backend integration tests (`npm test`), Prisma migration/seed checks (`db:validate`, `db:migrate`, `db:seed`), production container build (`docker build`), and live HTTP `/api/health` + `/api/ready` + `/api/v1/auth/login` smoke checks run automatically via [`.github/workflows/ci-docker.yml`](../../../.github/workflows/ci-docker.yml) (`test-and-docker`) on the PR targeting `sprint-1-staging`.
+- Full backend integration tests (`npm test`), Prisma migration/seed checks (`db:validate`, `db:migrate`, `db:seed`), production container build (`docker build`), and live HTTP `/api/health` + `/api/ready` + `/api/v1/auth/login` smoke checks run automatically via [`.github/workflows/ci-docker.yml`](../../../.github/workflows/ci-docker.yml) (`test-and-docker`) on [`PR #51`](https://github.com/NxNxmm/CPE334-Sec01-Team45/pull/51) targeting `sprint-1-staging`.
 
 ---
 
 ## 4. Handoff Notes for `L6-5` Independent Retest (`Team TH-017`)
 
-Once PR `#45` merges into `sprint-1-staging` and `L6-5` (`#46`) deploys the updated Cloud Run revision from `main`, Team `TH-017` can verify both fixes non-destructively in production without needing a database reset:
+Once **`L6-4` Fix [`PR #51`](https://github.com/NxNxmm/CPE334-Sec01-Team45/pull/51)** (`fix/lab6-def-ef-01-02 -> sprint-1-staging`, resolving Issues [`#45`](https://github.com/NxNxmm/CPE334-Sec01-Team45/issues/45), [`#52`](https://github.com/NxNxmm/CPE334-Sec01-Team45/issues/52), and [`#53`](https://github.com/NxNxmm/CPE334-Sec01-Team45/issues/53)) is reviewed and merged into `sprint-1-staging`, and a separate reviewed **Release PR (`sprint-1-staging -> main`)** under `L6-5` ([Issue `#46`](https://github.com/NxNxmm/CPE334-Sec01-Team45/issues/46)) passes CI and deploys the corrected Cloud Run revision, Team `TH-017` can verify both fixes non-destructively in production without needing a database reset:
 1. **`DEF-EF-01` Retest:** Sign in as `BORROWER_FREE` (`borrower2@cpe.kmutt.ac.th`) and visit `https://equipflow-ddqo5fpv2a-as.a.run.app/custodian/desk` -> verify URL redirects cleanly to `/` (`window.location.pathname === '/'`), Catalog renders, Custodian Desk remains unmounted, and the dismissible unauthorized alert banner (`role="alert"`) appears.
 2. **`DEF-EF-02` Retest:** Navigate to **My Requests** as `BORROWER_FREE` -> verify **Pending Requests (0)** shows `"No pending borrowing requests."` (matching `pendingRequestsCount: 0`), while `seed_request_checked_out` and `cmwuq6uo10001s601j8qbjvk4` render under **Request History (2)** with accurate **`✓ Approved`** badges.
