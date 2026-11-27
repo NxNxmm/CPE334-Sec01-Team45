@@ -4,11 +4,16 @@ import { Catalog } from './components/Catalog.js';
 import { MyRequests } from './components/MyRequests.js';
 import { CustodianDesk } from './components/CustodianDesk.js';
 
+function isCustodianRoute(pathname: string): boolean {
+  return pathname === '/custodian' || pathname.startsWith('/custodian/');
+}
+
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('equipflow_token'));
   const [isValidating, setIsValidating] = useState<boolean>(Boolean(token));
   const [currentTab, setCurrentTab] = useState<'catalog' | 'my-requests'>('catalog');
+  const [unauthorizedNotice, setUnauthorizedNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const validateToken = async () => {
@@ -40,6 +45,27 @@ export default function App() {
     validateToken();
   }, [token]);
 
+  useEffect(() => {
+    if (!user || user.role !== 'BORROWER') {
+      return;
+    }
+
+    const enforceBorrowerRouteGuard = () => {
+      if (isCustodianRoute(window.location.pathname)) {
+        const attemptedPath = window.location.pathname;
+        window.history.replaceState(null, '', '/');
+        setCurrentTab('catalog');
+        setUnauthorizedNotice(
+          `Unauthorized access: ${attemptedPath} is restricted to Custodian accounts. You have been redirected to the Borrower Catalog.`
+        );
+      }
+    };
+
+    enforceBorrowerRouteGuard();
+    window.addEventListener('popstate', enforceBorrowerRouteGuard);
+    return () => window.removeEventListener('popstate', enforceBorrowerRouteGuard);
+  }, [user]);
+
   const handleLoginSuccess = (data: { token: string; user: UserProfile }) => {
     localStorage.setItem('equipflow_token', data.token);
     setToken(data.token);
@@ -61,6 +87,7 @@ export default function App() {
     localStorage.removeItem('equipflow_token');
     setToken(null);
     setUser(null);
+    setUnauthorizedNotice(null);
   };
 
   if (isValidating) {
@@ -121,6 +148,17 @@ export default function App() {
       </header>
 
       <main className="container py-5 flex-grow-1">
+        {unauthorizedNotice && (
+          <div className="alert alert-danger d-flex align-items-center justify-content-between gap-3 mb-4" role="alert">
+            <span>{unauthorizedNotice}</span>
+            <button
+              type="button"
+              className="btn-close"
+              aria-label="Close unauthorized notice"
+              onClick={() => setUnauthorizedNotice(null)}
+            />
+          </div>
+        )}
         {user.role === 'CUSTODIAN' ? (
           <CustodianDesk token={token!} />
         ) : currentTab === 'catalog' ? (

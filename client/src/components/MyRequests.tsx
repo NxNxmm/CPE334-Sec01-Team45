@@ -62,6 +62,61 @@ function formatDate(dateString: string): string {
   }
 }
 
+function getRequestStatusBadge(status: string): {
+  className: string;
+  icon: string;
+  label: string;
+} {
+  switch (status) {
+    case 'APPROVED':
+      return { className: 'status-available', icon: '✓', label: 'Approved' };
+    case 'REJECTED':
+      return { className: 'status-maintenance', icon: '✕', label: 'Rejected' };
+    case 'CANCELLED':
+      return { className: 'status-checked_out', icon: '—', label: 'Cancelled' };
+    case 'PENDING':
+      return { className: 'status-reserved', icon: '⏳', label: 'Pending Approval' };
+    default:
+      return { className: 'status-checked_out', icon: '●', label: status };
+  }
+}
+
+function renderRequestsTable(entries: BorrowRequest[]) {
+  return (
+    <div className="table-responsive">
+      <table className="table table-equipflow align-middle mb-0">
+        <thead>
+          <tr>
+            <th scope="col">Asset Tag</th>
+            <th scope="col">Equipment Name</th>
+            <th scope="col">Requested Date</th>
+            <th scope="col">Purpose Notes</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((req) => {
+            const badge = getRequestStatusBadge(req.status);
+            return (
+              <tr key={req.id}>
+                <td className="fw-bold">{req.item.assetTag}</td>
+                <td>{req.item.name}</td>
+                <td>{formatDate(req.createdAt)}</td>
+                <td>{req.requestNote || '—'}</td>
+                <td>
+                  <span className={`status-badge ${badge.className}`}>
+                    <span aria-hidden="true">{badge.icon}</span> {badge.label}
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function MyRequests({ token, onNavigateToCatalog }: MyRequestsProps) {
   const [data, setData] = useState<MyRequestsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -120,7 +175,9 @@ export function MyRequests({ token, onNavigateToCatalog }: MyRequestsProps) {
 
   const requests = data?.requests ?? [];
   const loans = data?.loans ?? data?.activeLoans ?? [];
-  const activeCount = data?.activeQuota?.current ?? data?.quota?.activeQuota ?? (requests.filter(r => r.status === 'PENDING').length + loans.length);
+  const pendingRequests = requests.filter((req) => req.status === 'PENDING');
+  const processedRequests = requests.filter((req) => req.status !== 'PENDING');
+  const activeCount = data?.activeQuota?.current ?? data?.quota?.activeQuota ?? (pendingRequests.length + loans.length);
   const maxQuota = data?.activeQuota?.maximum ?? data?.quota?.maxQuota ?? 3;
   const isAllEmpty = requests.length === 0 && loans.length === 0;
 
@@ -231,41 +288,24 @@ export function MyRequests({ token, onNavigateToCatalog }: MyRequestsProps) {
           {/* Pending Requests Section */}
           <section className="mb-4" aria-labelledby="pending-requests-subheading">
             <h2 id="pending-requests-subheading" className="h5 fw-bold mb-3" style={{ color: 'var(--color-deep-ocean)' }}>
-              Pending Requests ({requests.length})
+              Pending Requests ({pendingRequests.length})
             </h2>
-            {requests.length === 0 ? (
+            {pendingRequests.length === 0 ? (
               <p className="catalog-panel mb-0">No pending borrowing requests.</p>
             ) : (
-              <div className="table-responsive">
-                <table className="table table-equipflow align-middle mb-0">
-                  <thead>
-                    <tr>
-                      <th scope="col">Asset Tag</th>
-                      <th scope="col">Equipment Name</th>
-                      <th scope="col">Requested Date</th>
-                      <th scope="col">Purpose Notes</th>
-                      <th scope="col">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {requests.map((req) => (
-                      <tr key={req.id}>
-                        <td className="fw-bold">{req.item.assetTag}</td>
-                        <td>{req.item.name}</td>
-                        <td>{formatDate(req.createdAt)}</td>
-                        <td>{req.requestNote || '—'}</td>
-                        <td>
-                          <span className="status-badge status-reserved">
-                            <span aria-hidden="true">⏳</span> Pending Approval
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              renderRequestsTable(pendingRequests)
             )}
           </section>
+
+          {/* Request History Section */}
+          {processedRequests.length > 0 && (
+            <section className="mb-4" aria-labelledby="request-history-subheading">
+              <h2 id="request-history-subheading" className="h5 fw-bold mb-3" style={{ color: 'var(--color-deep-ocean)' }}>
+                Request History ({processedRequests.length})
+              </h2>
+              {renderRequestsTable(processedRequests)}
+            </section>
+          )}
         </>
       )}
     </section>
