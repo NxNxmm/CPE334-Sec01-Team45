@@ -1,0 +1,87 @@
+2026-11-22T12:33:03Z
+$ git rev-parse HEAD
+ee7306170b54736413086e2bd659f9a2b427a5ed
+$ docker version --format {{.Server.Version}}
+28.4.0
+$ docker compose version
+Docker Compose version v2.39.4-desktop.1
+Configuration: clean staging clone, .env.example copied to .env and JWT_SECRET set locally.
+The isolated Compose project used APP_PORT=18088 and POSTGRES_PORT=15438.
+$ docker compose -p lab5-c03-1122 config -q
+$ docker compose -p lab5-c03-1122 up --build --wait --wait-timeout 120
+Exit 0. Both images built. PostgreSQL and app reached Healthy; migration exited successfully.
+$ docker compose -p lab5-c03-1122 ps --all
+NAME                      IMAGE                   COMMAND                  SERVICE   CREATED              STATUS                          PORTS
+lab5-c03-1122-app-1       lab5-c03-1122-app       "docker-entrypoint.s…"   app       About a minute ago   Up About a minute (healthy)     0.0.0.0:18088->8080/tcp, [::]:18088->8080/tcp
+lab5-c03-1122-db-1        postgres:16-alpine      "docker-entrypoint.s…"   db        2 minutes ago        Up About a minute (healthy)     0.0.0.0:15438->5432/tcp, [::]:15438->5432/tcp
+lab5-c03-1122-migrate-1   lab5-c03-1122-migrate   "docker-entrypoint.s…"   migrate   2 minutes ago        Exited (0) About a minute ago
+$ docker compose -p lab5-c03-1122 exec -T app id -u
+1000
+$ curl -fsS -w ' HTTP %{http_code}' http://127.0.0.1:18088/api/health
+{"status":"ok","service":"equipflow-api"} HTTP 200
+$ curl -fsS -w ' HTTP %{http_code}' http://127.0.0.1:18088/api/ready
+{"status":"ready","service":"equipflow-api","db":"connected"} HTTP 200
+$ GET /
+HTTP 200
+$ POST /api/v1/auth/login with the local seed account
+HTTP 200
+$ docker compose -p lab5-c03-1122 logs --no-color migrate
+migrate-1  |
+migrate-1  | > equipflow-sprint-1@0.1.0 db:setup
+migrate-1  | > npm run db:migrate && npm run db:seed
+migrate-1  |
+migrate-1  |
+migrate-1  | > equipflow-sprint-1@0.1.0 db:migrate
+migrate-1  | > prisma migrate deploy
+migrate-1  |
+migrate-1  | Loaded Prisma config from prisma.config.ts.
+migrate-1  |
+migrate-1  | Prisma config detected, skipping environment variable loading.
+migrate-1  | Prisma schema loaded from prisma/schema.prisma
+migrate-1  | Datasource "db": PostgreSQL database "equipflow", schema "public" at "db:5432"
+migrate-1  |
+migrate-1  | 1 migration found in prisma/migrations
+migrate-1  |
+migrate-1  | Applying migration `20261112205548_init`
+migrate-1  |
+migrate-1  | The following migration(s) have been applied:
+migrate-1  |
+migrate-1  | migrations/
+migrate-1  |   └─ 20261112205548_init/
+migrate-1  |     └─ migration.sql
+migrate-1  |
+migrate-1  | All migrations have been successfully applied.
+migrate-1  |
+migrate-1  | > equipflow-sprint-1@0.1.0 db:seed
+migrate-1  | > prisma db seed
+migrate-1  |
+migrate-1  | Loaded Prisma config from prisma.config.ts.
+migrate-1  |
+migrate-1  | Prisma config detected, skipping environment variable loading.
+migrate-1  | Running seed command `node --import tsx prisma/seed.ts` ...
+migrate-1  | Seeded 3 users and 6 equipment items.
+migrate-1  | ┌─────────────────────────────────────────────────────────┐
+migrate-1  | │  Update available 6.19.3 -> 8.0.0-rc.34                 │
+migrate-1  | │                                                         │
+migrate-1  | │  This is a major update - please follow the guide at    │
+migrate-1  | │  https://pris.ly/d/major-version-upgrade                │
+migrate-1  | │                                                         │
+migrate-1  | │  Run the following to update                            │
+migrate-1  | │    npm i --save-dev prisma@latest                       │
+migrate-1  | │    npm i @prisma/client@latest                          │
+migrate-1  | └─────────────────────────────────────────────────────────┘
+migrate-1  |
+migrate-1  | 🌱  The seed command has been executed.
+migrate-1  | npm notice
+migrate-1  | npm notice New major version of npm available! 10.9.9 -> 12.2.3
+migrate-1  | npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+migrate-1  | npm notice To update run: npm install -g npm@12.2.3
+migrate-1  | npm notice
+$ docker volume ls --filter name=lab5-c03-1122_postgres-data
+DRIVER    VOLUME NAME
+local     lab5-c03-1122_postgres-data
+
+After docker compose -p lab5-c03-1122 down (exit 0):
+$ docker volume ls --filter name=lab5-c03-1122_postgres-data
+DRIVER    VOLUME NAME
+local     lab5-c03-1122_postgres-data

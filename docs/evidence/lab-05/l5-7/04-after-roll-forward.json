@@ -1,0 +1,24 @@
+{
+  "capturedAt": "2026-11-22T12:34:20+00:00",
+  "url": "https://equipflow-ddqo5fpv2a-as.a.run.app",
+  "endpoint": "GET /api/v1/requests/my",
+  "httpStatus": 200,
+  "request": {
+    "id": "cmwqdf5ji0001s60101l4203z",
+    "status": "PENDING",
+    "requestNote": "LAB5-C05-20261121T1912ICT",
+    "createdAt": "2026-11-21T12:15:07.470Z",
+    "assetTag": "CPE-OSC-002"
+  },
+  "healthHttpStatus": 200,
+  "readyHttpStatus": 200,
+  "cloudRun": {
+    "revision": "equipflow-00009-kns",
+    "trafficPercent": 100,
+    "commit": "8217beff7d33b2fc7657c36824d4a22a0df6bb94",
+    "platformDigest": "sha256:604e51553a794404a063f40bdbaa8d037ee94dd72c92a87a9a2b47ae65f3f7a0",
+    "registryIndexDigest": "sha256:ac724f44dd1b11f0f67dbbe81a697685b64a60c8966d59981a42e29555ac6cfa",
+    "revisionSource": "https://console.cloud.google.com/run/detail/asia-southeast1/equipflow/revisions?project=cpe334-team45",
+    "deployJob": "https://github.com/NxNxmm/CPE334-Sec01-Team45/actions/runs/45022823168/job/137209259668"
+  }
+}
